@@ -14,6 +14,11 @@ public class ProductManagerWebApplicationFactory : WebApplicationFactory<Program
         builder.UseEnvironment("Development");
         builder.UseSetting("Database:UseInMemoryDatabase", "true");
         builder.UseSetting("Database:InMemoryDatabaseName", DatabaseName);
+
+        // appsettings.json ships with an empty JwtSettings:SecretKey on purpose (see
+        // Program.cs fail-fast check) so a real secret never ends up in source control.
+        // Tests supply their own throwaway key instead of relying on any local/CI secret.
+        builder.UseSetting("JwtSettings:SecretKey", "IntegrationTests_NotARealSecret_ThisIsOnly4TestingPurposes123!");
     }
 
     /// <summary>

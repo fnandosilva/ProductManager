@@ -30,19 +30,34 @@ dotnet tool restore
 
 2. Update the connection string in `ProductManager.WebAPI/appsettings.json` if needed (currently configured for `localhost\SQLEXPRESS`).
 
-3. Apply migrations (optional — the app applies them automatically on startup):
+3. Configure the JWT signing secret. `appsettings.json` intentionally ships with an **empty** `JwtSettings:SecretKey` — the app fails fast at startup if it isn't set, so a real secret never gets committed to source control. For local (non-Docker) development, store it with [.NET User Secrets](https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets) (saved outside the repo, under your user profile):
+
+```bash
+dotnet user-secrets init --project ProductManager.WebAPI
+dotnet user-secrets set "JwtSettings:SecretKey" "<a-long-random-string-at-least-32-chars>" --project ProductManager.WebAPI
+```
+
+   PowerShell one-liner to generate a strong random value:
+
+   ```powershell
+   [Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Maximum 256 }))
+   ```
+
+   (When running via [Docker Compose](#run-with-docker) instead, the secret comes from the `JWT_SECRET_KEY` value in your `.env` file — see below — so User Secrets aren't needed in that flow.)
+
+4. Apply migrations (optional — the app applies them automatically on startup):
 
 ```bash
 dotnet ef database update --project ProductManager.Infrastructure --startup-project ProductManager.WebAPI
 ```
 
-4. Run the API:
+5. Run the API:
 
 ```bash
 dotnet run --project ProductManager.WebAPI
 ```
 
-5. Access the API:
+6. Access the API:
 
 **Swagger UI (Interactive API Documentation):**
 - HTTPS: `https://localhost:7228/`
@@ -216,18 +231,37 @@ Authorization: Bearer eyJhbGciOi...
 
 ### JWT Configuration
 
-JWT settings can be configured in `appsettings.json`:
+JWT settings live under `JwtSettings` in `appsettings.json`:
 
 ```json
 "JwtSettings": {
-  "SecretKey": "YourSuperSecretKeyThatIsAtLeast32CharactersLongForHS256!",
+  "SecretKey": "",
   "Issuer": "ProductManagerAPI",
   "Audience": "ProductManagerClient",
   "ExpiryMinutes": "60"
 }
 ```
 
-**Security Note:** Change the `SecretKey` to a strong random value in production!
+`SecretKey` is **intentionally left empty in source control**. `Program.cs` validates it at startup and throws immediately with a descriptive error if it's missing, rather than letting the app boot with no/weak signing key:
+
+```
+Unhandled exception. System.InvalidOperationException: JwtSettings:SecretKey is not configured.
+Set it via .NET User Secrets for local development (dotnet user-secrets set "JwtSettings:SecretKey" "<value>")
+or via the JwtSettings__SecretKey environment variable in Docker/production. See README.md.
+```
+
+Supply the real value out-of-band, matching your environment:
+
+| Environment | Where the secret comes from |
+|---|---|
+| Local `dotnet run` | [.NET User Secrets](#run-locally) (`dotnet user-secrets set ...`) — stored under your user profile, never in the repo |
+| Docker Compose | `JWT_SECRET_KEY` in your `.env` file → passed through as the `JwtSettings__SecretKey` env var (double underscore = nested config key) |
+| Production hosting (VM/cloud) | An environment variable or your platform's secret store (e.g. Docker/Kubernetes secrets, Azure Key Vault, AWS Secrets Manager) injected as `JwtSettings__SecretKey` — never written to disk in a config file |
+
+**Security notes:**
+- Use a cryptographically random value of at least 32 bytes (256 bits) for HS256 — see the generator snippet in [Run locally](#run-locally).
+- Rotate the secret periodically and immediately if it's ever exposed; rotating invalidates all previously issued tokens.
+- Never commit a real secret to `appsettings.json`, `appsettings.*.json`, or `.env` — only `.env.example`/`appsettings.Development.json.example` (with placeholder values) belong in Git.
 
 ## CORS
 

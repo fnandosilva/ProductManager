@@ -20,7 +20,14 @@ builder.Services
     .AddPresentation();
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-var secretKey = jwtSettings["SecretKey"] ?? throw new InvalidOperationException("JWT SecretKey is not configured.");
+var secretKey = jwtSettings["SecretKey"];
+if (string.IsNullOrWhiteSpace(secretKey))
+{
+    throw new InvalidOperationException(
+        "JwtSettings:SecretKey is not configured. Set it via .NET User Secrets for local " +
+        "development (dotnet user-secrets set \"JwtSettings:SecretKey\" \"<value>\") or via the " +
+        "JwtSettings__SecretKey environment variable in Docker/production. See README.md.");
+}
 
 builder.Services.AddAuthentication(options =>
 {
