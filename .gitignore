@@ -1,0 +1,86 @@
+## ---------------------------------------------------------------------------
+## .NET / Visual Studio (backend)
+## ---------------------------------------------------------------------------
+[Bb]in/
+[Oo]bj/
+out/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Ll]og/
+[Ll]ogs/
+
+# EF Core / SQL local files
+*.mdf
+*.ldf
+*.ndf
+
+# Environment-specific settings (may contain local overrides / secrets)
+appsettings.Development.json
+appsettings.*.local.json
+*.env
+
+# Test results
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+coverage/
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+
+# NuGet
+*.nupkg
+**/packages/*
+!**/packages/build/
+
+## ---------------------------------------------------------------------------
+## Node / Angular (frontend — client-app)
+## ---------------------------------------------------------------------------
+node_modules/
+client-app/dist/
+client-app/.angular/
+npm-debug.log*
+yarn-error.log*
+*.tsbuildinfo
+
+## ---------------------------------------------------------------------------
+## Docker / secrets
+## ---------------------------------------------------------------------------
+.env
+
+## ---------------------------------------------------------------------------
+## Editors / OS
+## ---------------------------------------------------------------------------
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+
+## ---------------------------------------------------------------------------
+## Misc
+## ---------------------------------------------------------------------------
+*.log
+*.tmp

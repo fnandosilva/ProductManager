@@ -1,0 +1,30 @@
+<mat-toolbar color="primary" class="shell-toolbar">
+  <a routerLink="/products" class="brand">
+    <mat-icon>inventory_2</mat-icon>
+    <span>Product Manager</span>
+  </a>
+
+  <span class="spacer"></span>
+
+  @if (authService.currentUser(); as user) {
+    <button mat-button [matMenuTriggerFor]="userMenu" class="user-menu-trigger">
+      <mat-icon>account_circle</mat-icon>
+      <span class="username">{{ user.username }}</span>
+      <mat-icon>arrow_drop_down</mat-icon>
+    </button>
+    <mat-menu #userMenu="matMenu">
+      <div class="user-menu-header">
+        <div class="user-menu-name">{{ user.username }}</div>
+        <div class="user-menu-email">{{ user.email }}</div>
+      </div>
+      <button mat-menu-item (click)="logout()">
+        <mat-icon>logout</mat-icon>
+        <span>Sign out</span>
+      </button>
+    </mat-menu>
+  }
+</mat-toolbar>
+
+<main class="shell-content">
+  <router-outlet />
+</main>

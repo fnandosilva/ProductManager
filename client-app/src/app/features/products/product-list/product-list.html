@@ -1,0 +1,156 @@
+<div class="page-header">
+  <div class="page-header-text">
+    <h1>Products</h1>
+    <p class="page-subtitle">Manage your product catalog and stock levels</p>
+  </div>
+  <button mat-flat-button color="primary" class="add-btn" (click)="openCreateDialog()">
+    <mat-icon>add</mat-icon>
+    Add product
+  </button>
+</div>
+
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-icon stat-icon--primary">
+      <mat-icon>inventory_2</mat-icon>
+    </div>
+    <div class="stat-text">
+      <span class="stat-value">{{ totalProducts() }}</span>
+      <span class="stat-label">Products</span>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon stat-icon--accent">
+      <mat-icon>widgets</mat-icon>
+    </div>
+    <div class="stat-text">
+      <span class="stat-value">{{ totalStockUnits() }}</span>
+      <span class="stat-label">Units in stock</span>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon stat-icon--warn">
+      <mat-icon>warning_amber</mat-icon>
+    </div>
+    <div class="stat-text">
+      <span class="stat-value">{{ lowStockCount() }}</span>
+      <span class="stat-label">Low stock (&lt; {{ lowStockThreshold }})</span>
+    </div>
+  </div>
+</div>
+
+<div class="filters-card">
+  <form [formGroup]="searchForm" (ngSubmit)="search()" class="filter-row">
+    <mat-form-field appearance="outline" class="search-field">
+      <mat-label>Search by name</mat-label>
+      <input matInput formControlName="name" placeholder="e.g. Lens Cleaner" />
+      <mat-icon matPrefix>search</mat-icon>
+    </mat-form-field>
+    <button mat-flat-button type="submit" color="primary" class="filter-btn">Search</button>
+  </form>
+
+  <div class="filter-divider"></div>
+
+  <form [formGroup]="stockFilterForm" (ngSubmit)="filterByStock()" class="filter-row">
+    <mat-form-field appearance="outline" class="stock-field">
+      <mat-label>Min stock</mat-label>
+      <input matInput type="number" formControlName="min" min="0" />
+    </mat-form-field>
+    <mat-form-field appearance="outline" class="stock-field">
+      <mat-label>Max stock</mat-label>
+      <input matInput type="number" formControlName="max" min="0" />
+    </mat-form-field>
+    <button mat-stroked-button type="submit" color="primary" class="filter-btn">Filter by stock</button>
+  </form>
+</div>
+
+@if (activeFilter()) {
+  <div class="active-filter-row">
+    <mat-chip-set>
+      <mat-chip (removed)="clearFilters()">
+        <mat-icon matChipAvatar>filter_alt</mat-icon>
+        {{ activeFilter() }}
+        <button matChipRemove aria-label="Clear filter">
+          <mat-icon>cancel</mat-icon>
+        </button>
+      </mat-chip>
+    </mat-chip-set>
+  </div>
+}
+
+<div class="table-card">
+  @if (isLoading()) {
+    <div class="loading-state">
+      <mat-progress-spinner diameter="40" mode="indeterminate" />
+      <p>Loading products…</p>
+    </div>
+  } @else if (products().length === 0) {
+    <div class="empty-state">
+      <mat-icon>inventory_2</mat-icon>
+      <p>No products found.</p>
+      @if (activeFilter()) {
+        <button mat-stroked-button color="primary" (click)="clearFilters()">Clear filters</button>
+      }
+    </div>
+  } @else {
+    <table mat-table [dataSource]="products()" class="products-table">
+      <ng-container matColumnDef="id">
+        <th mat-header-cell *matHeaderCellDef>ID</th>
+        <td mat-cell *matCellDef="let product">
+          <span class="id-badge">{{ product.id }}</span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="name">
+        <th mat-header-cell *matHeaderCellDef>Name</th>
+        <td mat-cell *matCellDef="let product" class="name-cell">{{ product.name }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="description">
+        <th mat-header-cell *matHeaderCellDef>Description</th>
+        <td mat-cell *matCellDef="let product" class="description-cell">
+          {{ product.description || '—' }}
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="price">
+        <th mat-header-cell *matHeaderCellDef class="align-right">Price</th>
+        <td mat-cell *matCellDef="let product" class="align-right price-cell">
+          {{ product.price | currency: 'EUR' }}
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="stock">
+        <th mat-header-cell *matHeaderCellDef class="align-right">Stock</th>
+        <td mat-cell *matCellDef="let product" class="align-right">
+          <span class="stock-chip" [class.stock-low]="isLowStock(product)">
+            {{ product.stock }}
+          </span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef class="actions-header">Actions</th>
+        <td mat-cell *matCellDef="let product" class="actions-cell">
+          <button mat-icon-button matTooltip="Decrement stock" (click)="openStockDialog(product, 'decrement')">
+            <mat-icon>remove_circle_outline</mat-icon>
+          </button>
+          <button mat-icon-button matTooltip="Add stock" (click)="openStockDialog(product, 'add')">
+            <mat-icon>add_box</mat-icon>
+          </button>
+          <button mat-icon-button matTooltip="Edit product" (click)="openEditDialog(product)">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button matTooltip="Delete product" color="warn" (click)="openDeleteDialog(product)">
+            <mat-icon>delete_outline</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns" class="product-row"></tr>
+    </table>
+  }
+</div>

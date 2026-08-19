@@ -1,0 +1,80 @@
+:host {
+  display: block;
+}
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(135deg, #3f51b5 0%, #7986cb 100%);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 32px 28px 24px;
+  border-radius: 16px;
+}
+
+.auth-brand {
+  text-align: center;
+  margin-bottom: 16px;
+
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 500;
+    margin: 8px 0 4px;
+  }
+
+  p {
+    margin: 0;
+    color: rgba(0, 0, 0, 0.6);
+    font-size: 0.9rem;
+  }
+}
+
+.auth-brand-icon {
+  font-size: 40px;
+  height: 40px;
+  width: 40px;
+  color: #3f51b5;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.auth-submit {
+  height: 44px;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #b00020;
+  background: rgba(176, 0, 32, 0.08);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+
+  mat-icon {
+    font-size: 20px;
+    height: 20px;
+    width: 20px;
+  }
+}

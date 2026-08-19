@@ -1,0 +1,113 @@
+:host {
+  display: block;
+  width: 460px;
+  max-width: 100%;
+}
+
+.dialog-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 24px 20px 16px 24px;
+}
+
+.dialog-header-icon {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(63, 81, 181, 0.1);
+
+  mat-icon {
+    color: #3f51b5;
+    font-size: 24px;
+    height: 24px;
+    width: 24px;
+  }
+}
+
+.dialog-header-text {
+  flex: 1 1 auto;
+  min-width: 0;
+
+  h2 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: rgba(0, 0, 0, 0.87);
+  }
+
+  p {
+    margin: 4px 0 0;
+    font-size: 0.85rem;
+    color: rgba(0, 0, 0, 0.55);
+  }
+}
+
+.dialog-close {
+  flex: 0 0 auto;
+  margin: -4px -4px 0 0;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.dialog-form {
+  display: block;
+}
+
+.dialog-body {
+  padding: 4px 24px 8px;
+  max-height: 65vh;
+  overflow-y: auto;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.form-row {
+  display: flex;
+  gap: 16px;
+}
+
+.half-width {
+  flex: 1 1 0;
+}
+
+.form-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #b00020;
+  background: rgba(176, 0, 32, 0.08);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+
+  mat-icon {
+    font-size: 20px;
+    height: 20px;
+    width: 20px;
+    flex: 0 0 auto;
+  }
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px 24px;
+}
+
+.dialog-btn {
+  min-width: 120px;
+  height: 42px;
+  border-radius: 10px;
+  font-weight: 500;
+
+  mat-progress-spinner {
+    display: inline-block;
+  }
+}

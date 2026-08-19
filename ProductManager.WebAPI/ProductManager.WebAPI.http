@@ -1,0 +1,26 @@
+@ProductManager.WebAPI_HostAddress = https://localhost:7228
+
+GET {{ProductManager.WebAPI_HostAddress}}/api/products
+Accept: application/json
+
+###
+
+POST {{ProductManager.WebAPI_HostAddress}}/api/products
+Content-Type: application/json
+
+{
+  "name": "Test Product",
+  "description": "Sample product",
+  "price": 19.99,
+  "stock": 100
+}
+
+###
+
+GET {{ProductManager.WebAPI_HostAddress}}/api/products/search?name=Zeiss
+Accept: application/json
+
+###
+
+GET {{ProductManager.WebAPI_HostAddress}}/api/products/stock-level?min=50&max=200
+Accept: application/json

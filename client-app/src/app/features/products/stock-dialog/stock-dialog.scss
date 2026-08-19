@@ -1,0 +1,19 @@
+.stock-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stock-product-name {
+  font-weight: 500;
+  margin: 0 0 4px;
+}
+
+.stock-current {
+  margin: 0 0 16px;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.full-width {
+  width: 100%;
+}

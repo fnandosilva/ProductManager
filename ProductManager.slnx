@@ -1,0 +1,19 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="ProductManager.Application/ProductManager.Application.csproj" />
+    <Project Path="ProductManager.Infrastructure/ProductManager.Infrastructure.csproj" />
+    <Project Path="ProductManager.Presentation/ProductManager.Presentation.csproj" />
+    <Project Path="ProductManager.WebAPI/ProductManager.WebAPI.csproj" />
+    <Project Path="ProductManger.Domain/ProductManager.Domain.csproj" />
+  </Folder>
+  <Folder Name="/Tests/" />
+  <Folder Name="/Tests/Integration/">
+    <Project Path="ProductManager.WebAPI.Integration.Tests/ProductManager.WebAPI.Integration.Tests.csproj" />
+  </Folder>
+  <Folder Name="/Tests/Unit/">
+    <Project Path="ProductManager.Application.Tests/ProductManager.Application.Tests.csproj" />
+    <Project Path="ProductManager.Infrastructure.Tests/ProductManager.Infrastructure.Tests.csproj" Id="a08bcb07-4100-4ac7-b0c4-231acbca947f" />
+    <Project Path="ProductManager.Presentation.Tests/ProductManager.Presentation.Tests.csproj" Id="82424e5d-ff60-4f11-b957-15178b997691" />
+    <Project Path="ProductManager.WebAPI.Tests/ProductManager.WebAPI.Tests.csproj" Id="8b91ccc7-6b95-4e38-a125-34a98946271f" />
+  </Folder>
+</Solution>

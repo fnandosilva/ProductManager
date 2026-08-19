@@ -1,0 +1,23 @@
+<div class="confirm-dialog">
+  <div class="confirm-icon-wrapper" [class.confirm-icon-wrapper--destructive]="data.destructive">
+    <mat-icon class="confirm-icon">{{ data.destructive ? 'delete_outline' : 'help_outline' }}</mat-icon>
+  </div>
+
+  <h2 class="confirm-title">{{ data.title }}</h2>
+  <p class="confirm-message">{{ data.message }}</p>
+
+  <div class="confirm-actions">
+    <button mat-stroked-button class="confirm-btn" (click)="cancel()">
+      {{ data.cancelText ?? 'Cancel' }}
+    </button>
+    <button
+      mat-flat-button
+      [color]="data.destructive ? 'warn' : 'primary'"
+      class="confirm-btn"
+      (click)="confirm()"
+      cdkFocusInitial
+    >
+      {{ data.confirmText ?? 'Confirm' }}
+    </button>
+  </div>
+</div>
