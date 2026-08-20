@@ -4,7 +4,7 @@
     <Project Path="ProductManager.Infrastructure/ProductManager.Infrastructure.csproj" />
     <Project Path="ProductManager.Presentation/ProductManager.Presentation.csproj" />
     <Project Path="ProductManager.WebAPI/ProductManager.WebAPI.csproj" />
-    <Project Path="ProductManger.Domain/ProductManager.Domain.csproj" />
+    <Project Path="ProductManager.Domain/ProductManager.Domain.csproj" />
   </Folder>
   <Folder Name="/Tests/" />
   <Folder Name="/Tests/Integration/">

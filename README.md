@@ -381,7 +381,7 @@ The solution ships with a comprehensive automated test suite covering every laye
 | Project | Type | What it covers |
 |---------|------|-----------------|
 | `ProductManager.Application.Tests` | Unit | Domain entities (`Product`, `User`), all MediatR command/query handlers (Products + Auth), all FluentValidation validators, and the `ValidationBehavior` pipeline |
-| `ProductManager.Infrastructure.Tests` | Unit (EF Core InMemory) | `ProductRepository`, `AuthRepository`, `ProductIdGenerator` (sequential 6-digit ID allocation + exhaustion), `PasswordHasher` (BCrypt), `JwtTokenGenerator` (claims/expiry/issuer), `DatabaseSeeder` |
+| `ProductManager.Infrastructure.Tests` | Unit (EF Core InMemory), plus one opt-in real-SQL-Server suite | `ProductRepository`, `AuthRepository`, `ProductIdGenerator` (sequential 6-digit ID allocation + exhaustion), `PasswordHasher` (BCrypt), `JwtTokenGenerator` (claims/expiry/issuer), `DatabaseSeeder`. Also `ProductIdGeneratorConcurrencyTests` — see [below](#concurrency-test-against-a-real-sql-server) — which proves the Serializable-transaction/`UPDLOCK, ROWLOCK` locking path is safe under real concurrent access |
 | `ProductManager.Presentation.Tests` | Unit | `ProductsController` and `AuthController` action methods, using a mocked `ISender` to assert the correct MediatR request is dispatched and the correct `IActionResult` (200/201/204/etc.) is returned |
 | `ProductManager.WebAPI.Tests` | Unit | `ExceptionHandlingMiddleware` — verifies every exception type (`NotFoundException`, `ValidationException`, `InvalidOperationException`, `ArgumentException`, unhandled) maps to the correct HTTP status code and JSON error body |
 | `ProductManager.WebAPI.Integration.Tests` | Integration (`WebApplicationFactory` + EF Core InMemory) | Full HTTP pipeline: JWT registration/login flow, protected endpoints returning 401 without/with an invalid token, complete Products CRUD lifecycle, stock management, search, stock-level filtering, and validation/not-found error responses |
@@ -418,6 +418,40 @@ Run with code coverage (uses the built-in `coverlet.collector`):
 dotnet test --collect:"XPlat Code Coverage"
 ```
 
+### Concurrency test against a real SQL Server
+
+`ProductIdGenerator` branches on `Database.IsRelational()`: against a real relational engine it
+opens a `Serializable` transaction (via EF Core's execution strategy, so it survives transient
+failure retries) and claims the next ID with a raw `SELECT ... WITH (UPDLOCK, ROWLOCK)` against
+the `ProductIdSequences` counter row. EF Core's InMemory provider — used by every other test in
+the suite, including the rest of `ProductIdGeneratorTests` — reports `IsRelational() == false`,
+so it never exercises that locking path at all.
+
+`ProductIdGeneratorConcurrencyTests` (in `ProductManager.Infrastructure.Tests`) closes that gap:
+it fires 50 concurrent `GenerateNextIdAsync` calls — each with its own `AppDbContext`, mirroring
+independent concurrent HTTP requests — against a real SQL Server database and asserts all 50 IDs
+are distinct, in the valid 6-digit range, and that the counter lands exactly on `start + 50` with
+no lost updates.
+
+This test needs a real, reachable SQL Server, so it resolves a connection in this order and
+**skips itself automatically** (rather than failing) if none is available:
+
+1. `SQL_TEST_CONNECTION_STRING` environment variable, if set — used as-is, no fallback.
+2. The docker-compose `sqlserver` service on `localhost,1433` (same sa credentials as `.env.example`):
+   ```bash
+   docker compose up -d sqlserver
+   ```
+3. SQL Server LocalDB (`(localdb)\MSSQLLocalDB`) — usually already available on a Windows dev
+   machine with Visual Studio/SQL Server tooling installed, and much faster to start than Docker.
+
+Each run creates a uniquely-named throwaway database (`ProductManagerId_ConcurrencyTests_<guid>`),
+applies migrations to it, and drops it again afterwards, so the test is fully isolated and
+repeatable. Run it on its own with:
+
+```bash
+dotnet test ProductManager.Infrastructure.Tests --filter "FullyQualifiedName~ProductIdGeneratorConcurrencyTests"
+```
+
 ### What's exercised
 
 - **Happy paths** — successful create/read/update/delete, register/login, add/decrement stock, search, stock-level filtering
@@ -426,6 +460,7 @@ dotnet test --collect:"XPlat Code Coverage"
 - **Business rule violations** — decrementing more stock than is available (400 `InvalidOperationException`)
 - **Authentication/authorization** — duplicate email/username on register, wrong password on login, missing/invalid JWT token on protected endpoints (401)
 - **Infrastructure behavior** — case-insensitive search/email lookups, sequential/exhausted ID generation, BCrypt hash round-tripping, JWT claim/issuer/audience/expiry correctness, idempotent database seeding
+- **Concurrency safety** — 50 parallel `ProductIdGenerator` calls against a real SQL Server never produce a duplicate ID (see [Concurrency test against a real SQL Server](#concurrency-test-against-a-real-sql-server))
 
 ## Features
 
@@ -439,7 +474,7 @@ dotnet test --collect:"XPlat Code Coverage"
 - **Swagger UI** — Interactive API documentation available in Development mode
 - **EF Core Migrations** — Code-first database with automatic migration on startup
 - **Auto-seeding** — Sample products automatically created on first run
-- **Comprehensive Test Suite** — 194 unit and integration tests covering domain, application, infrastructure, presentation, and full HTTP request/response flows
+- **Comprehensive Test Suite** — 195 unit and integration tests covering domain, application, infrastructure, presentation, and full HTTP request/response flows, including a real-SQL-Server concurrency test proving ID generation is safe under concurrent access
 - **Angular Frontend** — Login page with Angular Material, route guards, JWT interceptor, and a full Products management dashboard (see [Frontend](#frontend))
 - **Docker Compose** — One command spins up SQL Server, the API (auto-migrated/seeded), and the Angular frontend (see [Run with Docker](#run-with-docker))
 

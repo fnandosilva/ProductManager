@@ -23,7 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\ProductManager.Presentation\ProductManager.Presentation.csproj" />
     <ProjectReference Include="..\ProductManager.Application\ProductManager.Application.csproj" />
-    <ProjectReference Include="..\ProductManger.Domain\ProductManager.Domain.csproj" />
+    <ProjectReference Include="..\ProductManager.Domain\ProductManager.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>
