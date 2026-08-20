@@ -8,11 +8,35 @@ namespace ProductManager.Infrastructure.Tests.Data;
 public class DatabaseSeederTests
 {
     [Fact]
-    public async Task SeedAsync_OnEmptyDatabase_ShouldSeedProductIdSequenceAndProducts()
+    public async Task SeedRequiredDataAsync_OnEmptyDatabase_ShouldSeedProductIdSequence()
     {
         using var context = TestDbContextFactory.Create();
 
-        await DatabaseSeeder.SeedAsync(context);
+        await DatabaseSeeder.SeedRequiredDataAsync(context);
+
+        var sequence = await context.ProductIdSequences.SingleAsync();
+        sequence.NextProductId.Should().Be(Product.MinId);
+    }
+
+    [Fact]
+    public async Task SeedRequiredDataAsync_CalledTwice_ShouldNotDuplicateTheSequenceRow()
+    {
+        using var context = TestDbContextFactory.Create();
+
+        await DatabaseSeeder.SeedRequiredDataAsync(context);
+        await DatabaseSeeder.SeedRequiredDataAsync(context);
+
+        var sequences = await context.ProductIdSequences.ToListAsync();
+        sequences.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task SeedSampleDataAsync_OnEmptyDatabase_ShouldSeedProductsAndBumpTheSequence()
+    {
+        using var context = TestDbContextFactory.Create();
+        await DatabaseSeeder.SeedRequiredDataAsync(context);
+
+        await DatabaseSeeder.SeedSampleDataAsync(context);
 
         var sequence = await context.ProductIdSequences.SingleAsync();
         sequence.NextProductId.Should().Be(100_006);
@@ -23,19 +47,20 @@ public class DatabaseSeederTests
     }
 
     [Fact]
-    public async Task SeedAsync_CalledTwice_ShouldNotDuplicateProducts()
+    public async Task SeedSampleDataAsync_CalledTwice_ShouldNotDuplicateProducts()
     {
         using var context = TestDbContextFactory.Create();
+        await DatabaseSeeder.SeedRequiredDataAsync(context);
 
-        await DatabaseSeeder.SeedAsync(context);
-        await DatabaseSeeder.SeedAsync(context);
+        await DatabaseSeeder.SeedSampleDataAsync(context);
+        await DatabaseSeeder.SeedSampleDataAsync(context);
 
         var products = await context.Products.ToListAsync();
         products.Should().HaveCount(5);
     }
 
     [Fact]
-    public async Task SeedAsync_WhenProductsAlreadyExist_ShouldNotReseed()
+    public async Task SeedSampleDataAsync_WhenProductsAlreadyExist_ShouldNotReseed()
     {
         using var context = TestDbContextFactory.Create();
         await context.Database.EnsureCreatedAsync();
@@ -43,7 +68,7 @@ public class DatabaseSeederTests
         context.ProductIdSequences.Add(new ProductIdSequence { Id = 1, NextProductId = 101_000 });
         await context.SaveChangesAsync();
 
-        await DatabaseSeeder.SeedAsync(context);
+        await DatabaseSeeder.SeedSampleDataAsync(context);
 
         var products = await context.Products.ToListAsync();
         products.Should().ContainSingle();
@@ -51,22 +76,24 @@ public class DatabaseSeederTests
     }
 
     [Fact]
-    public async Task SeedAsync_ShouldSeedProductsWithPositiveStock()
+    public async Task SeedSampleDataAsync_ShouldSeedProductsWithPositiveStock()
     {
         using var context = TestDbContextFactory.Create();
+        await DatabaseSeeder.SeedRequiredDataAsync(context);
 
-        await DatabaseSeeder.SeedAsync(context);
+        await DatabaseSeeder.SeedSampleDataAsync(context);
 
         var products = await context.Products.ToListAsync();
         products.Should().OnlyContain(p => p.Stock > 0);
     }
 
     [Fact]
-    public async Task SeedAsync_OnEmptyDatabase_ShouldSeedOneDemoUserWithWorkingPassword()
+    public async Task SeedSampleDataAsync_OnEmptyDatabase_ShouldSeedOneDemoUserWithWorkingPassword()
     {
         using var context = TestDbContextFactory.Create();
+        await DatabaseSeeder.SeedRequiredDataAsync(context);
 
-        await DatabaseSeeder.SeedAsync(context);
+        await DatabaseSeeder.SeedSampleDataAsync(context);
 
         var users = await context.Users.ToListAsync();
         users.Should().ContainSingle();
@@ -76,19 +103,20 @@ public class DatabaseSeederTests
     }
 
     [Fact]
-    public async Task SeedAsync_CalledTwice_ShouldNotDuplicateDemoUser()
+    public async Task SeedSampleDataAsync_CalledTwice_ShouldNotDuplicateDemoUser()
     {
         using var context = TestDbContextFactory.Create();
+        await DatabaseSeeder.SeedRequiredDataAsync(context);
 
-        await DatabaseSeeder.SeedAsync(context);
-        await DatabaseSeeder.SeedAsync(context);
+        await DatabaseSeeder.SeedSampleDataAsync(context);
+        await DatabaseSeeder.SeedSampleDataAsync(context);
 
         var users = await context.Users.ToListAsync();
         users.Should().ContainSingle();
     }
 
     [Fact]
-    public async Task SeedAsync_WhenProductsAlreadyExistButNoUsers_ShouldStillSeedDemoUser()
+    public async Task SeedSampleDataAsync_WhenProductsAlreadyExistButNoUsers_ShouldStillSeedDemoUser()
     {
         using var context = TestDbContextFactory.Create();
         await context.Database.EnsureCreatedAsync();
@@ -96,7 +124,7 @@ public class DatabaseSeederTests
         context.ProductIdSequences.Add(new ProductIdSequence { Id = 1, NextProductId = 101_000 });
         await context.SaveChangesAsync();
 
-        await DatabaseSeeder.SeedAsync(context);
+        await DatabaseSeeder.SeedSampleDataAsync(context);
 
         var users = await context.Users.ToListAsync();
         users.Should().ContainSingle();

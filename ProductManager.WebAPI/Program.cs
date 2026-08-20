@@ -116,7 +116,19 @@ app.MapControllers();
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await DatabaseSeeder.SeedAsync(context);
+
+    // Two independently-controlled jobs: getting the schema up to date, then inserting data.
+    // Both default to safe-for-production behavior (no auto-migration, no sample data) and are
+    // only opted into for local/Docker-dev convenience via appsettings.Development.json.
+    var applyMigrationsOnStartup = builder.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup");
+    await DatabaseMigrator.EnsureDatabaseReadyAsync(context, applyMigrationsOnStartup);
+
+    await DatabaseSeeder.SeedRequiredDataAsync(context);
+
+    if (builder.Configuration.GetValue<bool>("Database:SeedSampleData"))
+    {
+        await DatabaseSeeder.SeedSampleDataAsync(context);
+    }
 }
 
 app.Run();

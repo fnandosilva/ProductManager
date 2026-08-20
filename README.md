@@ -45,7 +45,7 @@ dotnet user-secrets set "JwtSettings:SecretKey" "<a-long-random-string-at-least-
 
    (When running via [Docker Compose](#run-with-docker) instead, the secret comes from the `JWT_SECRET_KEY` value in your `.env` file — see below — so User Secrets aren't needed in that flow.)
 
-4. Apply migrations (optional — the app applies them automatically on startup):
+4. Apply migrations (optional — running in the Development environment, the default for `dotnet run`, applies them automatically on startup; see [Migrations and seeding](#migrations-and-seeding)):
 
 ```bash
 dotnet ef database update --project ProductManager.Infrastructure --startup-project ProductManager.WebAPI
@@ -63,7 +63,7 @@ dotnet run --project ProductManager.WebAPI
 - HTTPS: `https://localhost:7228/`
 - HTTP: `http://localhost:5270/`
 
-The Swagger UI provides an interactive interface to explore and test all API endpoints. A demo login (`demo` / `Demo@1234`) is seeded automatically the first time `SeedAsync` runs against an empty database, so you can call `POST /api/Auth/login` right away instead of registering a new user first (see [Authentication](#authentication)).
+The Swagger UI provides an interactive interface to explore and test all API endpoints. A demo login (`demo` / `Demo@1234`) is seeded automatically the first time the app starts (in Development) against an empty database, so you can call `POST /api/Auth/login` right away instead of registering a new user first (see [Authentication](#authentication) and [Migrations and seeding](#migrations-and-seeding)).
 
 **Alternative test methods:**
 - OpenAPI JSON spec: `https://localhost:7228/swagger/v1/swagger.json`
@@ -97,7 +97,7 @@ docker compose up --build
 This will, in order:
 
 1. Start **SQL Server 2022** in a container with a persisted volume (`sqlserver_data`), and wait until it reports healthy.
-2. Build and start the **API** container. On startup, the API automatically **applies pending EF Core migrations and seeds the 5 sample products plus one demo login** (`DatabaseSeeder.SeedAsync`, called from `Program.cs`) — no manual migration/seeding/registration step is required.
+2. Build and start the **API** container. On startup, the API automatically **applies pending EF Core migrations and seeds the 5 sample products plus one demo login** — no manual migration/seeding/registration step is required. This happens because Docker Compose runs with `ASPNETCORE_ENVIRONMENT=Development` by default; see [Migrations and seeding](#migrations-and-seeding) for how this is gated (and what changes for a real production deployment).
 3. Build and start the **Angular frontend**, served by nginx. nginx proxies any `/api/*` request to the API container (same pattern as the dev `proxy.conf.json`), so the frontend and API share an origin and no CORS configuration is required in the browser.
 
 ### 3. Access the app
@@ -106,7 +106,7 @@ This will, in order:
   - **Username:** `demo`
   - **Password:** `Demo@1234`
 
-  (Seeded once, on first run against an empty database, by `DatabaseSeeder`. The credentials are also printed to the API container logs — `docker compose logs api` — the first time they're created.)
+  (Seeded once, on first run against an empty database, by `DatabaseSeeder.SeedSampleDataAsync`. The credentials are also printed to the API container logs — `docker compose logs api` — the first time they're created.)
 - **API + Swagger UI:** `http://localhost:8080/` (only when `ASPNETCORE_ENVIRONMENT=Development`)
 - **SQL Server:** `localhost,1433` (e.g. via SSMS or Azure Data Studio, using `sa` / `DB_SA_PASSWORD`)
 
@@ -131,7 +131,7 @@ docker compose up --build api
 
 ### Applying migrations / re-seeding manually (optional)
 
-Migrations and seeding run automatically every time the `api` container starts, so this is rarely needed. If you want to run `dotnet ef` commands against the containerized database from your host machine (e.g. after adding a new migration), point the connection string at the exposed SQL Server port:
+Migrations and sample-data seeding run automatically every time the `api` container starts (as long as it's running in the Development environment — see [Migrations and seeding](#migrations-and-seeding)), so this is rarely needed. If you want to run `dotnet ef` commands against the containerized database from your host machine (e.g. after adding a new migration), point the connection string at the exposed SQL Server port:
 
 ```bash
 dotnet ef database update --project ProductManager.Infrastructure --startup-project ProductManager.WebAPI --connection "Server=localhost,1433;Database=ProductManagerDb;User Id=sa;Password=<DB_SA_PASSWORD>;TrustServerCertificate=true;Encrypt=true"
@@ -293,12 +293,45 @@ Configure allowed origins in `appsettings.json` / `appsettings.Development.json`
 
 **Security Note:** Never use `AllowAnyOrigin()` together with `AllowCredentials()` — the CORS spec forbids it, and enabling it would expose the API to cross-site credential leakage. Always whitelist specific origins.
 
+## Migrations and seeding
+
+`Program.cs` used to unconditionally migrate the schema and seed sample data on every startup, in
+every environment, via one `DatabaseSeeder.SeedAsync` method that did both jobs. That's fine for a
+throwaway demo, but wrong for production: auto-migrating on startup lets multiple app instances
+race to apply the same migration and removes any separate review/rollback point between "deploy
+new code" and "change the schema", and auto-seeding sample products and a well-known demo password
+into a real database is a straightforward security/data-hygiene issue.
+
+This is now two independently-controlled jobs, each with its own config flag (`ApplyMigrationsOnStartup`, `SeedSampleData`), gated by environment:
+
+| Job | Class | `appsettings.json` (production default) | `appsettings.Development.json` |
+|---|---|---|---|
+| Apply pending EF Core migrations | `DatabaseMigrator.EnsureDatabaseReadyAsync` | `Database:ApplyMigrationsOnStartup = false` — **fails fast** at startup instead if the schema is behind | `true` — convenient for local/Docker-dev |
+| Seed the `ProductIdSequences` counter row (required for ID generation to work at all) | `DatabaseSeeder.SeedRequiredDataAsync` | Always runs, in every environment — this is baseline data the app can't function without, not sample data | Always runs |
+| Seed 5 sample products + the `demo` / `Demo@1234` login | `DatabaseSeeder.SeedSampleDataAsync` | `Database:SeedSampleData = false` — never runs against a real production database | `true` — the out-of-the-box demo experience |
+
+For a real production deployment (`ASPNETCORE_ENVIRONMENT=Production`, or any environment other
+than Development that doesn't explicitly opt back in):
+
+- Apply migrations as an explicit, controlled deploy step **before** starting the new app version:
+  ```bash
+  dotnet ef database update --project ProductManager.Infrastructure --startup-project ProductManager.WebAPI
+  ```
+  If you skip this, the app fails fast on startup with a clear `InvalidOperationException` listing
+  the pending migrations, rather than silently serving requests against the wrong schema.
+- No sample products or demo login get inserted — `POST /api/auth/register` is the only way to
+  create a user.
+
+`docker compose up` keeps working exactly as before out of the box: `docker-compose.yml` defaults
+`ASPNETCORE_ENVIRONMENT` to `Development`, so `appsettings.Development.json`'s `true`/`true` values
+apply unless you explicitly override the environment in your `.env` file.
+
 ## Architecture
 
 ```
 ProductManger.Domain          → Entities, repository interfaces
 ProductManager.Application    → CQRS handlers, validators, DTOs
-ProductManager.Infrastructure → EF Core, repositories, ID generator, seeding
+ProductManager.Infrastructure → EF Core, repositories, ID generator, migrations, seeding
 ProductManager.Presentation   → API controllers
 ProductManager.WebAPI         → Host, middleware, configuration
 ```
@@ -307,7 +340,7 @@ ProductManager.WebAPI         → Host, middleware, configuration
 
 The [`client-app`](./client-app) folder contains the Angular frontend (latest Angular, standalone components, Angular Material UI). It provides:
 
-- A user-friendly **Login** page (Material card, reactive form validation, error handling) required before the rest of the app is accessible. There's no self-service registration screen by design (see [Authentication](#authentication)) — instead, `DatabaseSeeder` seeds one demo login (`demo` / `Demo@1234`) on first run so the app works immediately out of the box; additional users can be created via `POST /api/auth/register`.
+- A user-friendly **Login** page (Material card, reactive form validation, error handling) required before the rest of the app is accessible. There's no self-service registration screen by design (see [Authentication](#authentication)) — instead, the API seeds one demo login (`demo` / `Demo@1234`) on first run in Development so the app works immediately out of the box (see [Migrations and seeding](#migrations-and-seeding)); additional users can be created via `POST /api/auth/register`.
 - Route guards that redirect unauthenticated users to `/login` and keep authenticated users out of `/login`.
 - An HTTP interceptor that attaches the JWT to every API request and signs the user out automatically on a `401`.
 - A **Products** dashboard: table of all products with search-by-name, filter-by-stock-range, create/edit dialog, add-to-stock/decrement-stock dialogs, and a delete confirmation dialog.
@@ -387,7 +420,7 @@ The solution ships with a comprehensive automated test suite covering every laye
 | Project | Type | What it covers |
 |---------|------|-----------------|
 | `ProductManager.Application.Tests` | Unit | Domain entities (`Product`, `User`), all MediatR command/query handlers (Products + Auth), all FluentValidation validators, and the `ValidationBehavior` pipeline |
-| `ProductManager.Infrastructure.Tests` | Unit (EF Core InMemory), plus opt-in real-SQL-Server suites | `ProductRepository`, `AuthRepository`, `ProductIdGenerator` (sequential 6-digit ID allocation + exhaustion), `PasswordHasher` (BCrypt), `JwtTokenGenerator` (claims/expiry/issuer), `DatabaseSeeder`. Also the `RealSqlServer/` and `Security/ProductIdGeneratorConcurrencyTests` suites — see [below](#testing-against-a-real-sql-server) — which prove behavior the InMemory provider can't: real concurrent locking, `decimal(18,2)` rounding, SQL `LIKE` wildcard semantics, and collation-driven case-insensitive uniqueness |
+| `ProductManager.Infrastructure.Tests` | Unit (EF Core InMemory), plus opt-in real-SQL-Server suites | `ProductRepository`, `AuthRepository`, `ProductIdGenerator` (sequential 6-digit ID allocation + exhaustion), `PasswordHasher` (BCrypt), `JwtTokenGenerator` (claims/expiry/issuer), `DatabaseMigrator`, `DatabaseSeeder` (required baseline data vs. sample/demo data — see [Migrations and seeding](#migrations-and-seeding)). Also the `RealSqlServer/` and `Security/ProductIdGeneratorConcurrencyTests` suites — see [below](#testing-against-a-real-sql-server) — which prove behavior the InMemory provider can't: real concurrent locking, `decimal(18,2)` rounding, SQL `LIKE` wildcard semantics, and collation-driven case-insensitive uniqueness |
 | `ProductManager.Presentation.Tests` | Unit | `ProductsController` and `AuthController` action methods, using a mocked `ISender` to assert the correct MediatR request is dispatched and the correct `IActionResult` (200/201/204/etc.) is returned |
 | `ProductManager.WebAPI.Tests` | Unit | `ExceptionHandlingMiddleware` — verifies every exception type (`NotFoundException`, `ValidationException`, `InvalidOperationException`, `ArgumentException`, unhandled) maps to the correct HTTP status code and JSON error body |
 | `ProductManager.WebAPI.Integration.Tests` | Integration (`WebApplicationFactory` + EF Core InMemory) | Full HTTP pipeline: JWT registration/login flow, protected endpoints returning 401 without/with an invalid token, complete Products CRUD lifecycle, stock management, search, stock-level filtering, and validation/not-found error responses |
@@ -459,6 +492,7 @@ target a **real** SQL Server so these behaviors are actually proven, not assumed
 | `Security/ProductIdGeneratorConcurrencyTests` | `ProductIdGenerator`'s `Serializable` transaction + `WITH (UPDLOCK, ROWLOCK)` locking is safe under 50 concurrent callers — this path only runs when `Database.IsRelational()` is `true` |
 | `RealSqlServer/ProductRepositoryRealSqlServerTests` | A price with more than 2 decimal places (nothing in FluentValidation stopped this before this suite existed — see below) is silently *rounded* by the `decimal(18,2)` column, not rejected or truncated; and `SearchByNameAsync` correctly escapes SQL `LIKE` wildcards so a literal `%`/`_`/`[` in a search term doesn't turn into a wildcard |
 | `RealSqlServer/AuthRepositoryRealSqlServerTests` | `Users.Username`'s unique index and `AuthRepository.GetByUsernameAsync`'s plain `==` comparison both resolve case-insensitively under SQL Server's default collation (`"JohnDoe"` collides/matches `"johndoe"`) — the opposite of InMemory's ordinal, case-sensitive comparison |
+| `RealSqlServer/DatabaseMigratorRealSqlServerTests` | With `Database:ApplyMigrationsOnStartup=false` (the production default), starting against an unmigrated schema fails fast with a clear error instead of the app silently starting anyway; with it `true`, pending migrations are applied and nothing else runs — see [Migrations and seeding](#migrations-and-seeding) |
 
 Two real bugs/gaps these tests found were fixed as part of adding them, rather than just documented:
 
@@ -504,7 +538,7 @@ dotnet test ProductManager.Infrastructure.Tests --filter "FullyQualifiedName~Pro
 - **Business rule violations** — decrementing more stock than is available (400 `InvalidOperationException`)
 - **Authentication/authorization** — duplicate email/username on register, wrong password on login, missing/invalid JWT token on protected endpoints (401)
 - **Infrastructure behavior** — case-insensitive search/email lookups, sequential/exhausted ID generation, BCrypt hash round-tripping, JWT claim/issuer/audience/expiry correctness, idempotent database seeding
-- **Real-SQL-Server-only behavior** — concurrency safety (50 parallel `ProductIdGenerator` calls never produce a duplicate ID), `decimal(18,2)` rounding, `LIKE` wildcard escaping, and collation-driven case-insensitive username uniqueness/lookup (see [Testing against a real SQL Server](#testing-against-a-real-sql-server))
+- **Real-SQL-Server-only behavior** — concurrency safety (50 parallel `ProductIdGenerator` calls never produce a duplicate ID), `decimal(18,2)` rounding, `LIKE` wildcard escaping, collation-driven case-insensitive username uniqueness/lookup, and the migration fail-fast guard (see [Testing against a real SQL Server](#testing-against-a-real-sql-server))
 - **Frontend logic** — auth session persistence/restore, the JWT interceptor's attach/401-logout behavior, route guards, login form validation/error handling, and the products table's load/search/filter/CRUD/stock-dialog flows (see [Frontend tests](#frontend-tests-client-app))
 
 ## Features
@@ -517,9 +551,9 @@ dotnet test ProductManager.Infrastructure.Tests --filter "FullyQualifiedName~Pro
 - **FluentValidation** — Comprehensive input validation with detailed error messages
 - **Password Hashing** — Secure password storage using BCrypt
 - **Swagger UI** — Interactive API documentation available in Development mode
-- **EF Core Migrations** — Code-first database with automatic migration on startup
-- **Auto-seeding** — Sample products automatically created on first run
-- **Comprehensive Test Suite** — 207 backend unit/integration tests (domain, application, infrastructure, presentation, full HTTP request/response flows, and a handful of real-SQL-Server-only tests that self-skip without a reachable SQL Server — see [Testing against a real SQL Server](#testing-against-a-real-sql-server)) plus 47 frontend unit tests covering services, the JWT interceptor, route guards, and key components
+- **EF Core Migrations** — Code-first database; auto-applied on startup only in Development, fail-fast otherwise (see [Migrations and seeding](#migrations-and-seeding))
+- **Auto-seeding** — Sample products + a demo login created on first run, Development-only by default
+- **Comprehensive Test Suite** — 212 backend unit/integration tests (domain, application, infrastructure, presentation, full HTTP request/response flows, and a handful of real-SQL-Server-only tests that self-skip without a reachable SQL Server — see [Testing against a real SQL Server](#testing-against-a-real-sql-server)) plus 47 frontend unit tests covering services, the JWT interceptor, route guards, and key components
 - **Angular Frontend** — Login page with Angular Material, route guards, JWT interceptor, and a full Products management dashboard (see [Frontend](#frontend))
 - **Docker Compose** — One command spins up SQL Server, the API (auto-migrated/seeded), and the Angular frontend (see [Run with Docker](#run-with-docker))
 
@@ -530,6 +564,6 @@ dotnet test ProductManager.Infrastructure.Tests --filter "FullyQualifiedName~Pro
 - **Token Expiry:** JWT tokens expire after 60 minutes (configurable in `appsettings.json`)
 - Product IDs are auto-generated as unique 6-digit numbers (100,000–999,999)
 - ID generation uses a database sequence with row-level locking for multi-instance safety
-- The database is seeded with 5 sample products on first startup
+- The database is seeded with 5 sample products + a demo login on first startup, in Development only (see [Migrations and seeding](#migrations-and-seeding))
 - Swagger UI is only enabled in Development environment for security
 - **Swagger + Microsoft.OpenApi v2:** Swashbuckle.AspNetCore 10.x uses `Microsoft.OpenApi` 2.x, which moved its types from the `Microsoft.OpenApi.Models` namespace straight into `Microsoft.OpenApi`, and changed `AddSecurityRequirement` to take a `document =>` delegate returning an `OpenApiSecurityRequirement` keyed by `OpenApiSecuritySchemeReference`. The JWT "Authorize" button in Swagger UI is configured accordingly in `Program.cs` and has been verified to work end-to-end.

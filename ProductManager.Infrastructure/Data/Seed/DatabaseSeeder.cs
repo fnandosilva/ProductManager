@@ -4,19 +4,23 @@ using ProductManger.Domain.Entities;
 
 namespace ProductManager.Infrastructure.Data.Seed;
 
+/// <summary>
+/// Owns exactly one job: inserting data. Schema changes are <see cref="DatabaseMigrator"/>'s job.
+/// Seeding itself is split into two distinct concerns that need very different treatment in
+/// production:
+/// <list type="bullet">
+/// <item><see cref="SeedRequiredDataAsync"/> — data the app cannot function without (the
+/// <see cref="ProductIdSequence"/> counter row). Must run in every environment.</item>
+/// <item><see cref="SeedSampleDataAsync"/> — sample products and a demo login for a friendly
+/// out-of-the-box experience. Must NOT run against a real production database (sample products
+/// and a well-known demo password have no place there) — callers gate this behind
+/// <c>Database:SeedSampleData</c>, which only defaults to <c>true</c> in Development.</item>
+/// </list>
+/// </summary>
 public static class DatabaseSeeder
 {
-    public static async Task SeedAsync(AppDbContext context, CancellationToken cancellationToken = default)
+    public static async Task SeedRequiredDataAsync(AppDbContext context, CancellationToken cancellationToken = default)
     {
-        if (context.Database.IsRelational())
-        {
-            await context.Database.MigrateAsync(cancellationToken);
-        }
-        else
-        {
-            await context.Database.EnsureCreatedAsync(cancellationToken);
-        }
-
         if (!await context.ProductIdSequences.AnyAsync(cancellationToken))
         {
             context.ProductIdSequences.Add(new ProductIdSequence
@@ -27,7 +31,10 @@ public static class DatabaseSeeder
 
             await context.SaveChangesAsync(cancellationToken);
         }
+    }
 
+    public static async Task SeedSampleDataAsync(AppDbContext context, CancellationToken cancellationToken = default)
+    {
         // Seeded independently of the products early-return below so it still runs against a
         // database that already has products (e.g. an existing persisted volume from before
         // this demo login existed), instead of only on a completely empty database.

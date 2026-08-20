@@ -31,7 +31,8 @@ public class ProductsApiTests : IAsyncLifetime
     {
         using var scope = _factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await DatabaseSeeder.SeedAsync(context);
+        await DatabaseSeeder.SeedRequiredDataAsync(context);
+        await DatabaseSeeder.SeedSampleDataAsync(context);
     }
 
     // ---------- Authorization ----------
