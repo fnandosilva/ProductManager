@@ -355,7 +355,7 @@ this can only be proven against a real engine.
 ## Architecture
 
 ```
-ProductManger.Domain          → Entities, repository interfaces
+ProductManager.Domain          → Entities, repository interfaces
 ProductManager.Application    → CQRS handlers, validators, DTOs
 ProductManager.Infrastructure → EF Core, repositories, ID generator, migrations, seeding
 ProductManager.Presentation   → API controllers

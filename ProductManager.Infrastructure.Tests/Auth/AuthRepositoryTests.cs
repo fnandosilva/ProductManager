@@ -1,6 +1,6 @@
 using FluentAssertions;
 using ProductManager.Infrastructure.Auth;
-using ProductManger.Domain.Entities;
+using ProductManager.Domain.Entities;
 
 namespace ProductManager.Infrastructure.Tests.Auth;
 

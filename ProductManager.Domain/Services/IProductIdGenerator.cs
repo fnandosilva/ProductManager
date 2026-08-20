@@ -1,4 +1,4 @@
-namespace ProductManger.Domain.Services;
+namespace ProductManager.Domain.Services;
 
 public interface IProductIdGenerator
 {

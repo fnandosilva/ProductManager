@@ -3,9 +3,9 @@ using FluentValidation;
 using Moq;
 using ProductManager.Application.Auth.Commands.Login;
 using ProductManager.Application.Auth.Commands.Register;
-using ProductManger.Domain.Entities;
-using ProductManger.Domain.Repositories;
-using ProductManger.Domain.Services;
+using ProductManager.Domain.Entities;
+using ProductManager.Domain.Repositories;
+using ProductManager.Domain.Services;
 
 namespace ProductManager.Application.Tests.Handlers;
 

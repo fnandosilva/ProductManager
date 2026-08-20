@@ -3,9 +3,9 @@ using Moq;
 using ProductManager.Application.Common.Exceptions;
 using ProductManager.Application.Products.Commands.CreateProduct;
 using ProductManager.Application.Products.Commands.UpdateProduct;
-using ProductManger.Domain.Entities;
-using ProductManger.Domain.Repositories;
-using ProductManger.Domain.Services;
+using ProductManager.Domain.Entities;
+using ProductManager.Domain.Repositories;
+using ProductManager.Domain.Services;
 
 namespace ProductManager.Application.Tests.Handlers;
 

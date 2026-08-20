@@ -1,5 +1,5 @@
-using ProductManger.Domain.Entities;
-using ProductManger.Domain.Services;
+using ProductManager.Domain.Entities;
+using ProductManager.Domain.Services;
 
 namespace ProductManager.Infrastructure.Security;
 

@@ -1,12 +1,12 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ProductManager.Infrastructure.Auth;
 using ProductManager.Infrastructure.Data;
 using ProductManager.Infrastructure.Products;
 using ProductManager.Infrastructure.Security;
-using ProductManger.Domain.Repositories;
-using ProductManger.Domain.Services;
+using ProductManager.Domain.Repositories;
+using ProductManager.Domain.Services;
 
 namespace ProductManager.Infrastructure;
 

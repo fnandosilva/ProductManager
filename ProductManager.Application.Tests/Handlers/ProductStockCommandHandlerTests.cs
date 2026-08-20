@@ -4,8 +4,8 @@ using ProductManager.Application.Common.Exceptions;
 using ProductManager.Application.Products.Commands.AddToStock;
 using ProductManager.Application.Products.Commands.DecrementStock;
 using ProductManager.Application.Products.Commands.DeleteProduct;
-using ProductManger.Domain.Entities;
-using ProductManger.Domain.Repositories;
+using ProductManager.Domain.Entities;
+using ProductManager.Domain.Repositories;
 
 namespace ProductManager.Application.Tests.Handlers;
 

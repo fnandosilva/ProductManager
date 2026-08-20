@@ -1,8 +1,8 @@
 using FluentValidation;
 using MediatR;
 using ProductManager.Application.Auth.Dtos;
-using ProductManger.Domain.Repositories;
-using ProductManger.Domain.Services;
+using ProductManager.Domain.Repositories;
+using ProductManager.Domain.Services;
 
 namespace ProductManager.Application.Auth.Commands.Login;
 

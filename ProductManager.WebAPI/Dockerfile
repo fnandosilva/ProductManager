@@ -6,7 +6,7 @@ WORKDIR /src
 
 # Copy only the project files first so `dotnet restore` is cached
 # unless a .csproj actually changes.
-COPY ["ProductManger.Domain/ProductManager.Domain.csproj", "ProductManger.Domain/"]
+COPY ["ProductManager.Domain/ProductManager.Domain.csproj", "ProductManager.Domain/"]
 COPY ["ProductManager.Application/ProductManager.Application.csproj", "ProductManager.Application/"]
 COPY ["ProductManager.Infrastructure/ProductManager.Infrastructure.csproj", "ProductManager.Infrastructure/"]
 COPY ["ProductManager.Presentation/ProductManager.Presentation.csproj", "ProductManager.Presentation/"]
@@ -15,7 +15,7 @@ COPY ["ProductManager.WebAPI/ProductManager.WebAPI.csproj", "ProductManager.WebA
 RUN dotnet restore "ProductManager.WebAPI/ProductManager.WebAPI.csproj"
 
 # Now copy the rest of the source and publish
-COPY ProductManger.Domain/. ProductManger.Domain/
+COPY ProductManager.Domain/. ProductManager.Domain/
 COPY ProductManager.Application/. ProductManager.Application/
 COPY ProductManager.Infrastructure/. ProductManager.Infrastructure/
 COPY ProductManager.Presentation/. ProductManager.Presentation/
@@ -32,8 +32,8 @@ WORKDIR /app
 
 COPY --from=build /app/publish .
 
-# EF Core migrations + seed data are applied automatically on startup
-# (see DatabaseSeeder.SeedAsync, invoked from Program.cs).
+# EF Core migrations + seed data behavior is controlled by the Database:ApplyMigrationsOnStartup
+# and Database:SeedSampleData settings (see DatabaseMigrator / DatabaseSeeder, invoked from Program.cs).
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 

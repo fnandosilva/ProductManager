@@ -1,4 +1,4 @@
-using ProductManger.Domain.Entities;
+using ProductManager.Domain.Entities;
 
 namespace ProductManager.Application.Products.Dtos;
 

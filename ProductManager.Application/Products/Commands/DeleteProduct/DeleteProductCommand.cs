@@ -1,6 +1,6 @@
 using MediatR;
 using ProductManager.Application.Common.Exceptions;
-using ProductManger.Domain.Repositories;
+using ProductManager.Domain.Repositories;
 
 namespace ProductManager.Application.Products.Commands.DeleteProduct;
 

@@ -3,8 +3,8 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
-using ProductManger.Domain.Entities;
-using ProductManger.Domain.Services;
+using ProductManager.Domain.Entities;
+using ProductManager.Domain.Services;
 
 namespace ProductManager.Infrastructure.Security;
 

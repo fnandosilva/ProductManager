@@ -3,7 +3,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using ProductManager.Infrastructure.Data;
 using ProductManager.Infrastructure.Security;
-using ProductManger.Domain.Entities;
+using ProductManager.Domain.Entities;
 
 namespace ProductManager.Infrastructure.Tests.Security;
 

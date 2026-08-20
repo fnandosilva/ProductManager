@@ -1,5 +1,5 @@
 using FluentAssertions;
-using ProductManger.Domain.Entities;
+using ProductManager.Domain.Entities;
 
 namespace ProductManager.Application.Tests.Domain;
 

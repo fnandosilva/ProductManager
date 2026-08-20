@@ -1,4 +1,4 @@
-namespace ProductManger.Domain.Entities;
+namespace ProductManager.Domain.Entities;
 
 public class User
 {

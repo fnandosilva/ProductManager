@@ -1,8 +1,8 @@
 using MediatR;
 using ProductManager.Application.Products.Dtos;
-using ProductManger.Domain.Entities;
-using ProductManger.Domain.Repositories;
-using ProductManger.Domain.Services;
+using ProductManager.Domain.Entities;
+using ProductManager.Domain.Repositories;
+using ProductManager.Domain.Services;
 
 namespace ProductManager.Application.Products.Commands.CreateProduct;
 

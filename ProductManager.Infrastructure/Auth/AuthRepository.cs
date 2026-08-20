@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using ProductManger.Domain.Entities;
-using ProductManger.Domain.Repositories;
+using ProductManager.Domain.Entities;
+using ProductManager.Domain.Repositories;
 using ProductManager.Infrastructure.Data;
 
 namespace ProductManager.Infrastructure.Auth;

@@ -1,6 +1,6 @@
-using ProductManger.Domain.Entities;
+using ProductManager.Domain.Entities;
 
-namespace ProductManger.Domain.Services;
+namespace ProductManager.Domain.Services;
 
 public interface IJwtTokenGenerator
 {

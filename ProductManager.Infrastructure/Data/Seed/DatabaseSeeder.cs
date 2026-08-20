@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProductManager.Infrastructure.Data;
-using ProductManger.Domain.Entities;
+using ProductManager.Domain.Entities;
 
 namespace ProductManager.Infrastructure.Data.Seed;
 

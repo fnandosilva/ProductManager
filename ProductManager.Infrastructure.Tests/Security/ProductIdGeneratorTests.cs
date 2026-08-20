@@ -1,6 +1,6 @@
 using FluentAssertions;
 using ProductManager.Infrastructure.Security;
-using ProductManger.Domain.Entities;
+using ProductManager.Domain.Entities;
 
 namespace ProductManager.Infrastructure.Tests.Security;
 

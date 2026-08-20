@@ -1,6 +1,6 @@
-using ProductManger.Domain.Entities;
+using ProductManager.Domain.Entities;
 
-namespace ProductManger.Domain.Repositories;
+namespace ProductManager.Domain.Repositories;
 
 public interface IAuthRepository
 {

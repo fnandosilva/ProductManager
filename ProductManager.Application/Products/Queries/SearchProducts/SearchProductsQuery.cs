@@ -1,7 +1,7 @@
 using FluentValidation;
 using MediatR;
 using ProductManager.Application.Products.Dtos;
-using ProductManger.Domain.Repositories;
+using ProductManager.Domain.Repositories;
 
 namespace ProductManager.Application.Products.Queries.SearchProducts;
 

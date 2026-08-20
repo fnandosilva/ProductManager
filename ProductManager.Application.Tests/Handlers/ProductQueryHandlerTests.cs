@@ -5,8 +5,8 @@ using ProductManager.Application.Products.Queries.GetProductById;
 using ProductManager.Application.Products.Queries.GetProducts;
 using ProductManager.Application.Products.Queries.GetProductsByStockLevel;
 using ProductManager.Application.Products.Queries.SearchProducts;
-using ProductManger.Domain.Entities;
-using ProductManger.Domain.Repositories;
+using ProductManager.Domain.Entities;
+using ProductManager.Domain.Repositories;
 
 namespace ProductManager.Application.Tests.Handlers;
 

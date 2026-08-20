@@ -2,7 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using ProductManager.Infrastructure.Security;
-using ProductManger.Domain.Entities;
+using ProductManager.Domain.Entities;
 
 namespace ProductManager.Infrastructure.Tests.Security;
 
