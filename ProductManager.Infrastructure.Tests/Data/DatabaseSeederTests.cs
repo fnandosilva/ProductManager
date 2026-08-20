@@ -60,4 +60,46 @@ public class DatabaseSeederTests
         var products = await context.Products.ToListAsync();
         products.Should().OnlyContain(p => p.Stock > 0);
     }
+
+    [Fact]
+    public async Task SeedAsync_OnEmptyDatabase_ShouldSeedOneDemoUserWithWorkingPassword()
+    {
+        using var context = TestDbContextFactory.Create();
+
+        await DatabaseSeeder.SeedAsync(context);
+
+        var users = await context.Users.ToListAsync();
+        users.Should().ContainSingle();
+        users[0].Username.Should().Be("demo");
+        users[0].Email.Should().Be("demo@productmanager.local");
+        BCrypt.Net.BCrypt.Verify("Demo@1234", users[0].PasswordHash).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task SeedAsync_CalledTwice_ShouldNotDuplicateDemoUser()
+    {
+        using var context = TestDbContextFactory.Create();
+
+        await DatabaseSeeder.SeedAsync(context);
+        await DatabaseSeeder.SeedAsync(context);
+
+        var users = await context.Users.ToListAsync();
+        users.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task SeedAsync_WhenProductsAlreadyExistButNoUsers_ShouldStillSeedDemoUser()
+    {
+        using var context = TestDbContextFactory.Create();
+        await context.Database.EnsureCreatedAsync();
+        context.Products.Add(Product.Create(100_999, "Existing Product", null, 1m, 1));
+        context.ProductIdSequences.Add(new ProductIdSequence { Id = 1, NextProductId = 101_000 });
+        await context.SaveChangesAsync();
+
+        await DatabaseSeeder.SeedAsync(context);
+
+        var users = await context.Users.ToListAsync();
+        users.Should().ContainSingle();
+        users[0].Username.Should().Be("demo");
+    }
 }

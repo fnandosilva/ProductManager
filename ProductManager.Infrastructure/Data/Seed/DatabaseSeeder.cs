@@ -28,6 +28,11 @@ public static class DatabaseSeeder
             await context.SaveChangesAsync(cancellationToken);
         }
 
+        // Seeded independently of the products early-return below so it still runs against a
+        // database that already has products (e.g. an existing persisted volume from before
+        // this demo login existed), instead of only on a completely empty database.
+        await SeedDemoUserAsync(context, cancellationToken);
+
         if (await context.Products.AnyAsync(cancellationToken))
         {
             return;
@@ -48,5 +53,31 @@ public static class DatabaseSeeder
         sequence.NextProductId = 100_006;
 
         await context.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Seeds a single demo login so the app is usable immediately after `docker compose up` —
+    /// without it, the Angular login page has no self-service registration and no way to obtain
+    /// credentials short of calling POST /api/auth/register directly (see README).
+    /// </summary>
+    private static async Task SeedDemoUserAsync(AppDbContext context, CancellationToken cancellationToken)
+    {
+        if (await context.Users.AnyAsync(cancellationToken))
+        {
+            return;
+        }
+
+        const string demoUsername = "demo";
+        const string demoEmail = "demo@productmanager.local";
+        const string demoPassword = "Demo@1234";
+
+        context.Users.Add(User.Create(demoUsername, demoEmail, BCrypt.Net.BCrypt.HashPassword(demoPassword)));
+        await context.SaveChangesAsync(cancellationToken);
+
+        Console.WriteLine("========================================================");
+        Console.WriteLine(" Demo login seeded (see README.md for details):");
+        Console.WriteLine($"   Username: {demoUsername}");
+        Console.WriteLine($"   Password: {demoPassword}");
+        Console.WriteLine("========================================================");
     }
 }

@@ -63,7 +63,7 @@ dotnet run --project ProductManager.WebAPI
 - HTTPS: `https://localhost:7228/`
 - HTTP: `http://localhost:5270/`
 
-The Swagger UI provides an interactive interface to explore and test all API endpoints.
+The Swagger UI provides an interactive interface to explore and test all API endpoints. A demo login (`demo` / `Demo@1234`) is seeded automatically the first time `SeedAsync` runs against an empty database, so you can call `POST /api/Auth/login` right away instead of registering a new user first (see [Authentication](#authentication)).
 
 **Alternative test methods:**
 - OpenAPI JSON spec: `https://localhost:7228/swagger/v1/swagger.json`
@@ -97,12 +97,16 @@ docker compose up --build
 This will, in order:
 
 1. Start **SQL Server 2022** in a container with a persisted volume (`sqlserver_data`), and wait until it reports healthy.
-2. Build and start the **API** container. On startup, the API automatically **applies pending EF Core migrations and seeds the 5 sample products** (`DatabaseSeeder.SeedAsync`, called from `Program.cs`) — no manual migration/seeding step is required.
+2. Build and start the **API** container. On startup, the API automatically **applies pending EF Core migrations and seeds the 5 sample products plus one demo login** (`DatabaseSeeder.SeedAsync`, called from `Program.cs`) — no manual migration/seeding/registration step is required.
 3. Build and start the **Angular frontend**, served by nginx. nginx proxies any `/api/*` request to the API container (same pattern as the dev `proxy.conf.json`), so the frontend and API share an origin and no CORS configuration is required in the browser.
 
 ### 3. Access the app
 
-- **Frontend:** `http://localhost:4200`
+- **Frontend:** `http://localhost:4200` — log in with the seeded demo account:
+  - **Username:** `demo`
+  - **Password:** `Demo@1234`
+
+  (Seeded once, on first run against an empty database, by `DatabaseSeeder`. The credentials are also printed to the API container logs — `docker compose logs api` — the first time they're created.)
 - **API + Swagger UI:** `http://localhost:8080/` (only when `ASPNETCORE_ENVIRONMENT=Development`)
 - **SQL Server:** `localhost,1433` (e.g. via SSMS or Azure Data Studio, using `sa` / `DB_SA_PASSWORD`)
 
@@ -169,6 +173,8 @@ dotnet ef database update --project ProductManager.Infrastructure --startup-proj
 ## Authentication
 
 The API uses **JWT (JSON Web Tokens)** for authentication. All product endpoints require a valid token.
+
+> **Fastest path:** a demo login (`demo` / `Demo@1234`) is seeded automatically on first run — see [Run with Docker](#3-access-the-app) or [Run locally](#run-locally) — so you can `POST /api/auth/login` (or just use the Angular login page) immediately without registering anything.
 
 ### Quick Start
 
@@ -301,7 +307,7 @@ ProductManager.WebAPI         → Host, middleware, configuration
 
 The [`client-app`](./client-app) folder contains the Angular frontend (latest Angular, standalone components, Angular Material UI). It provides:
 
-- A user-friendly **Login** page (Material card, reactive form validation, error handling) required before the rest of the app is accessible. User registration is handled outside the app (e.g. directly via `POST /api/auth/register`).
+- A user-friendly **Login** page (Material card, reactive form validation, error handling) required before the rest of the app is accessible. There's no self-service registration screen by design (see [Authentication](#authentication)) — instead, `DatabaseSeeder` seeds one demo login (`demo` / `Demo@1234`) on first run so the app works immediately out of the box; additional users can be created via `POST /api/auth/register`.
 - Route guards that redirect unauthenticated users to `/login` and keep authenticated users out of `/login`.
 - An HTTP interceptor that attaches the JWT to every API request and signs the user out automatically on a `401`.
 - A **Products** dashboard: table of all products with search-by-name, filter-by-stock-range, create/edit dialog, add-to-stock/decrement-stock dialogs, and a delete confirmation dialog.
