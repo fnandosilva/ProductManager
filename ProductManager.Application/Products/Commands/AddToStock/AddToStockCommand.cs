@@ -31,11 +31,10 @@ public sealed class AddToStockCommandHandler : IRequestHandler<AddToStockCommand
 
     public async Task Handle(AddToStockCommand request, CancellationToken cancellationToken)
     {
-        var product = await _productRepository.GetByIdAsync(request.Id, cancellationToken)
+        // Atomic (locked) read-modify-write — see IProductRepository.AddToStockAsync — so two
+        // concurrent stock additions against the same product can never both read the same
+        // "before" stock and lose one of the two updates.
+        _ = await _productRepository.AddToStockAsync(request.Id, request.Quantity, cancellationToken)
             ?? throw new NotFoundException($"Product with ID {request.Id} was not found.");
-
-        product.AddToStock(request.Quantity);
-
-        await _productRepository.UpdateAsync(product, cancellationToken);
     }
 }

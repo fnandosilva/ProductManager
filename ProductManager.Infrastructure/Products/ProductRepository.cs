@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using ProductManger.Domain.Entities;
 using ProductManger.Domain.Repositories;
@@ -89,5 +90,74 @@ public class ProductRepository : IProductRepository
     public async Task<bool> ExistsAsync(int id, CancellationToken cancellationToken = default)
     {
         return await _context.Products.AnyAsync(p => p.Id == id, cancellationToken);
+    }
+
+    public Task<Product?> DecrementStockAsync(int id, int quantity, CancellationToken cancellationToken = default)
+        => MutateUnderRowLockAsync(id, product => product.DecrementStock(quantity), cancellationToken);
+
+    public Task<Product?> AddToStockAsync(int id, int quantity, CancellationToken cancellationToken = default)
+        => MutateUnderRowLockAsync(id, product => product.AddToStock(quantity), cancellationToken);
+
+    /// <summary>
+    /// Reads a product, applies <paramref name="mutate"/>, and saves — all inside a single
+    /// Serializable transaction, with the read itself taking a real row lock on a relational
+    /// engine (same pattern as <c>ProductIdGenerator</c>'s counter allocation). Without this, two
+    /// concurrent stock-adjustment requests can both read the same "before" value and one update
+    /// silently overwrites the other (a lost update) — exactly the bug an inventory API can't
+    /// afford. <paramref name="mutate"/> throwing (e.g. <see cref="Product.DecrementStock"/> on
+    /// insufficient stock) rolls the transaction back instead of persisting a partial change.
+    /// </summary>
+    private async Task<Product?> MutateUnderRowLockAsync(
+        int id,
+        Action<Product> mutate,
+        CancellationToken cancellationToken)
+    {
+        if (!_context.Database.IsRelational())
+        {
+            var product = await _context.Products.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+            if (product is null)
+            {
+                return null;
+            }
+
+            mutate(product);
+            await _context.SaveChangesAsync(cancellationToken);
+            return product;
+        }
+
+        var strategy = _context.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync(
+                IsolationLevel.Serializable,
+                cancellationToken);
+
+            Product? product;
+            if (_context.Database.IsSqlServer())
+            {
+                product = await _context.Products
+                    .FromSqlRaw("SELECT * FROM Products WITH (UPDLOCK, ROWLOCK) WHERE Id = {0}", id)
+                    .AsTracking()
+                    .SingleOrDefaultAsync(cancellationToken);
+            }
+            else
+            {
+                product = await _context.Products
+                    .AsTracking()
+                    .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+            }
+
+            if (product is null)
+            {
+                return null;
+            }
+
+            mutate(product);
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            return product;
+        });
     }
 }

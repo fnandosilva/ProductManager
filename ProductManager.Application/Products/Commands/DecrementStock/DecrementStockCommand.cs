@@ -31,11 +31,10 @@ public sealed class DecrementStockCommandHandler : IRequestHandler<DecrementStoc
 
     public async Task Handle(DecrementStockCommand request, CancellationToken cancellationToken)
     {
-        var product = await _productRepository.GetByIdAsync(request.Id, cancellationToken)
+        // Atomic (locked) read-modify-write — see IProductRepository.DecrementStockAsync — so two
+        // concurrent decrements against the same product can never both read the same "before"
+        // stock and lose one of the two updates.
+        _ = await _productRepository.DecrementStockAsync(request.Id, request.Quantity, cancellationToken)
             ?? throw new NotFoundException($"Product with ID {request.Id} was not found.");
-
-        product.DecrementStock(request.Quantity);
-
-        await _productRepository.UpdateAsync(product, cancellationToken);
     }
 }

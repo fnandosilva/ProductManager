@@ -169,4 +169,67 @@ public class ProductRepositoryTests
 
         exists.Should().BeFalse();
     }
+
+    [Fact]
+    public async Task DecrementStockAsync_WithSufficientStock_ShouldPersistTheDecrement()
+    {
+        using var context = TestDbContextFactory.Create();
+        var repository = new ProductRepository(context);
+        await repository.AddAsync(Product.Create(100_001, "Test", null, 10m, 10));
+
+        var result = await repository.DecrementStockAsync(100_001, 4);
+
+        result.Should().NotBeNull();
+        result!.Stock.Should().Be(6);
+        (await repository.GetByIdAsync(100_001))!.Stock.Should().Be(6);
+    }
+
+    [Fact]
+    public async Task DecrementStockAsync_WithInsufficientStock_ShouldThrowAndNotPersistAnyChange()
+    {
+        using var context = TestDbContextFactory.Create();
+        var repository = new ProductRepository(context);
+        await repository.AddAsync(Product.Create(100_001, "Test", null, 10m, 2));
+
+        var act = () => repository.DecrementStockAsync(100_001, 10);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Insufficient stock*");
+        (await repository.GetByIdAsync(100_001))!.Stock.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task DecrementStockAsync_WithNonExistentProduct_ShouldReturnNull()
+    {
+        using var context = TestDbContextFactory.Create();
+        var repository = new ProductRepository(context);
+
+        var result = await repository.DecrementStockAsync(999_999, 1);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task AddToStockAsync_WithExistingProduct_ShouldPersistTheIncrement()
+    {
+        using var context = TestDbContextFactory.Create();
+        var repository = new ProductRepository(context);
+        await repository.AddAsync(Product.Create(100_001, "Test", null, 10m, 5));
+
+        var result = await repository.AddToStockAsync(100_001, 20);
+
+        result.Should().NotBeNull();
+        result!.Stock.Should().Be(25);
+        (await repository.GetByIdAsync(100_001))!.Stock.Should().Be(25);
+    }
+
+    [Fact]
+    public async Task AddToStockAsync_WithNonExistentProduct_ShouldReturnNull()
+    {
+        using var context = TestDbContextFactory.Create();
+        var repository = new ProductRepository(context);
+
+        var result = await repository.AddToStockAsync(999_999, 1);
+
+        result.Should().BeNull();
+    }
 }

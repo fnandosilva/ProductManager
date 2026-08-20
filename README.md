@@ -326,6 +326,32 @@ than Development that doesn't explicitly opt back in):
 `ASPNETCORE_ENVIRONMENT` to `Development`, so `appsettings.Development.json`'s `true`/`true` values
 apply unless you explicitly override the environment in your `.env` file.
 
+## Stock concurrency
+
+`POST /api/products/{id}/decrement-stock` and `.../add-to-stock` used to do a plain
+get-then-update: read the product, call `Product.DecrementStock`/`AddToStock` on the in-memory
+object, then save. That's a lost-update race on an inventory endpoint — two concurrent requests
+against the same product can both read the same "before" stock, and whichever `SaveChanges` wins
+silently overwrites the other's change. Worse, for `decrement-stock` specifically: both requests
+can independently see "enough" stock available and both succeed, selling more units than were
+ever in stock.
+
+`IProductRepository.DecrementStockAsync`/`AddToStockAsync` fix this by making the read-modify-write
+atomic on a real relational engine, using the same pattern `ProductIdGenerator` already used for
+ID allocation: a `Serializable` transaction plus a `SELECT ... WITH (UPDLOCK, ROWLOCK)` read, so a
+second concurrent caller against the same product row blocks until the first transaction commits
+(or rolls back — `Product.DecrementStock` still throws for insufficient stock, and that now rolls
+the transaction back instead of ever being saved). The command handlers no longer touch
+`Product.Stock` themselves; they just call the repository and let it own the atomicity.
+
+`ProductRepositoryStockConcurrencyRealSqlServerTests` (see [Testing against a real SQL
+Server](#testing-against-a-real-sql-server)) proves this against a real SQL Server: 50 concurrent
+single-unit decrements against ample stock lose none of them, and — the more important case for an
+inventory API — firing 20 concurrent single-unit decrements at a product with only 10 units in
+stock results in *exactly* 10 successes, 10 "insufficient stock" failures, and a final stock of
+exactly `0`, never negative. EF Core's InMemory provider has no real transactions or row locks, so
+this can only be proven against a real engine.
+
 ## Architecture
 
 ```
@@ -420,7 +446,7 @@ The solution ships with a comprehensive automated test suite covering every laye
 | Project | Type | What it covers |
 |---------|------|-----------------|
 | `ProductManager.Application.Tests` | Unit | Domain entities (`Product`, `User`), all MediatR command/query handlers (Products + Auth), all FluentValidation validators, and the `ValidationBehavior` pipeline |
-| `ProductManager.Infrastructure.Tests` | Unit (EF Core InMemory), plus opt-in real-SQL-Server suites | `ProductRepository`, `AuthRepository`, `ProductIdGenerator` (sequential 6-digit ID allocation + exhaustion), `PasswordHasher` (BCrypt), `JwtTokenGenerator` (claims/expiry/issuer), `DatabaseMigrator`, `DatabaseSeeder` (required baseline data vs. sample/demo data — see [Migrations and seeding](#migrations-and-seeding)). Also the `RealSqlServer/` and `Security/ProductIdGeneratorConcurrencyTests` suites — see [below](#testing-against-a-real-sql-server) — which prove behavior the InMemory provider can't: real concurrent locking, `decimal(18,2)` rounding, SQL `LIKE` wildcard semantics, and collation-driven case-insensitive uniqueness |
+| `ProductManager.Infrastructure.Tests` | Unit (EF Core InMemory), plus opt-in real-SQL-Server suites | `ProductRepository` (including the atomic `DecrementStockAsync`/`AddToStockAsync` — see [Stock concurrency](#stock-concurrency)), `AuthRepository`, `ProductIdGenerator` (sequential 6-digit ID allocation + exhaustion), `PasswordHasher` (BCrypt), `JwtTokenGenerator` (claims/expiry/issuer), `DatabaseMigrator`, `DatabaseSeeder` (required baseline data vs. sample/demo data — see [Migrations and seeding](#migrations-and-seeding)). Also the `RealSqlServer/` and `Security/ProductIdGeneratorConcurrencyTests` suites — see [below](#testing-against-a-real-sql-server) — which prove behavior the InMemory provider can't: real concurrent locking, `decimal(18,2)` rounding, SQL `LIKE` wildcard semantics, and collation-driven case-insensitive uniqueness |
 | `ProductManager.Presentation.Tests` | Unit | `ProductsController` and `AuthController` action methods, using a mocked `ISender` to assert the correct MediatR request is dispatched and the correct `IActionResult` (200/201/204/etc.) is returned |
 | `ProductManager.WebAPI.Tests` | Unit | `ExceptionHandlingMiddleware` — verifies every exception type (`NotFoundException`, `ValidationException`, `InvalidOperationException`, `ArgumentException`, unhandled) maps to the correct HTTP status code and JSON error body |
 | `ProductManager.WebAPI.Integration.Tests` | Integration (`WebApplicationFactory` + EF Core InMemory) | Full HTTP pipeline: JWT registration/login flow, protected endpoints returning 401 without/with an invalid token, complete Products CRUD lifecycle, stock management, search, stock-level filtering, and validation/not-found error responses |
@@ -493,6 +519,7 @@ target a **real** SQL Server so these behaviors are actually proven, not assumed
 | `RealSqlServer/ProductRepositoryRealSqlServerTests` | A price with more than 2 decimal places (nothing in FluentValidation stopped this before this suite existed — see below) is silently *rounded* by the `decimal(18,2)` column, not rejected or truncated; and `SearchByNameAsync` correctly escapes SQL `LIKE` wildcards so a literal `%`/`_`/`[` in a search term doesn't turn into a wildcard |
 | `RealSqlServer/AuthRepositoryRealSqlServerTests` | `Users.Username`'s unique index and `AuthRepository.GetByUsernameAsync`'s plain `==` comparison both resolve case-insensitively under SQL Server's default collation (`"JohnDoe"` collides/matches `"johndoe"`) — the opposite of InMemory's ordinal, case-sensitive comparison |
 | `RealSqlServer/DatabaseMigratorRealSqlServerTests` | With `Database:ApplyMigrationsOnStartup=false` (the production default), starting against an unmigrated schema fails fast with a clear error instead of the app silently starting anyway; with it `true`, pending migrations are applied and nothing else runs — see [Migrations and seeding](#migrations-and-seeding) |
+| `RealSqlServer/ProductRepositoryStockConcurrencyRealSqlServerTests` | 50 concurrent single-unit stock decrements/additions against the same product never lose an update; with less stock than concurrent demand, exactly as many decrements succeed as there was stock for and the rest fail with "insufficient stock" — stock never goes negative (oversold) — see [Stock concurrency](#stock-concurrency) |
 
 Two real bugs/gaps these tests found were fixed as part of adding them, rather than just documented:
 
@@ -538,7 +565,7 @@ dotnet test ProductManager.Infrastructure.Tests --filter "FullyQualifiedName~Pro
 - **Business rule violations** — decrementing more stock than is available (400 `InvalidOperationException`)
 - **Authentication/authorization** — duplicate email/username on register, wrong password on login, missing/invalid JWT token on protected endpoints (401)
 - **Infrastructure behavior** — case-insensitive search/email lookups, sequential/exhausted ID generation, BCrypt hash round-tripping, JWT claim/issuer/audience/expiry correctness, idempotent database seeding
-- **Real-SQL-Server-only behavior** — concurrency safety (50 parallel `ProductIdGenerator` calls never produce a duplicate ID), `decimal(18,2)` rounding, `LIKE` wildcard escaping, collation-driven case-insensitive username uniqueness/lookup, and the migration fail-fast guard (see [Testing against a real SQL Server](#testing-against-a-real-sql-server))
+- **Real-SQL-Server-only behavior** — concurrency safety (50 parallel `ProductIdGenerator` calls never produce a duplicate ID; concurrent stock decrements/additions never lose an update or oversell — see [Stock concurrency](#stock-concurrency)), `decimal(18,2)` rounding, `LIKE` wildcard escaping, collation-driven case-insensitive username uniqueness/lookup, and the migration fail-fast guard (see [Testing against a real SQL Server](#testing-against-a-real-sql-server))
 - **Frontend logic** — auth session persistence/restore, the JWT interceptor's attach/401-logout behavior, route guards, login form validation/error handling, and the products table's load/search/filter/CRUD/stock-dialog flows (see [Frontend tests](#frontend-tests-client-app))
 
 ## Features
@@ -553,7 +580,7 @@ dotnet test ProductManager.Infrastructure.Tests --filter "FullyQualifiedName~Pro
 - **Swagger UI** — Interactive API documentation available in Development mode
 - **EF Core Migrations** — Code-first database; auto-applied on startup only in Development, fail-fast otherwise (see [Migrations and seeding](#migrations-and-seeding))
 - **Auto-seeding** — Sample products + a demo login created on first run, Development-only by default
-- **Comprehensive Test Suite** — 212 backend unit/integration tests (domain, application, infrastructure, presentation, full HTTP request/response flows, and a handful of real-SQL-Server-only tests that self-skip without a reachable SQL Server — see [Testing against a real SQL Server](#testing-against-a-real-sql-server)) plus 47 frontend unit tests covering services, the JWT interceptor, route guards, and key components
+- **Comprehensive Test Suite** — 220 backend unit/integration tests (domain, application, infrastructure, presentation, full HTTP request/response flows, and a handful of real-SQL-Server-only tests that self-skip without a reachable SQL Server — see [Testing against a real SQL Server](#testing-against-a-real-sql-server)) plus 47 frontend unit tests covering services, the JWT interceptor, route guards, and key components
 - **Angular Frontend** — Login page with Angular Material, route guards, JWT interceptor, and a full Products management dashboard (see [Frontend](#frontend))
 - **Docker Compose** — One command spins up SQL Server, the API (auto-migrated/seeded), and the Angular frontend (see [Run with Docker](#run-with-docker))
 
@@ -564,6 +591,7 @@ dotnet test ProductManager.Infrastructure.Tests --filter "FullyQualifiedName~Pro
 - **Token Expiry:** JWT tokens expire after 60 minutes (configurable in `appsettings.json`)
 - Product IDs are auto-generated as unique 6-digit numbers (100,000–999,999)
 - ID generation uses a database sequence with row-level locking for multi-instance safety
+- Stock decrement/add-to-stock are atomic (row-locked) read-modify-writes, safe under concurrent requests against the same product (see [Stock concurrency](#stock-concurrency))
 - The database is seeded with 5 sample products + a demo login on first startup, in Development only (see [Migrations and seeding](#migrations-and-seeding))
 - Swagger UI is only enabled in Development environment for security
 - **Swagger + Microsoft.OpenApi v2:** Swashbuckle.AspNetCore 10.x uses `Microsoft.OpenApi` 2.x, which moved its types from the `Microsoft.OpenApi.Models` namespace straight into `Microsoft.OpenApi`, and changed `AddSecurityRequirement` to take a `document =>` delegate returning an `OpenApiSecurityRequirement` keyed by `OpenApiSecuritySchemeReference`. The JWT "Authorize" button in Swagger UI is configured accordingly in `Program.cs` and has been verified to work end-to-end.
