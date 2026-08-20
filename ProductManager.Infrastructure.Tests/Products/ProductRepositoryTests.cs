@@ -72,6 +72,22 @@ public class ProductRepositoryTests
     }
 
     [Fact]
+    public async Task SearchByNameAsync_WithALiteralPercentInTheQuery_ShouldOnlyMatchNamesContainingIt()
+    {
+        // Regression test for the unescaped-LIKE bug documented in
+        // RealSqlServer/ProductRepositoryRealSqlServerTests.cs: a search term of "%" must not
+        // be reinterpreted as a wildcard that matches every product.
+        using var context = TestDbContextFactory.Create();
+        var repository = new ProductRepository(context);
+        await repository.AddAsync(Product.Create(100_001, "100% Cotton Cloth", null, 1m, 0));
+        await repository.AddAsync(Product.Create(100_002, "Zeiss Lens Cleaner", null, 1m, 0));
+
+        var result = await repository.SearchByNameAsync("%");
+
+        result.Should().ContainSingle(p => p.Id == 100_001);
+    }
+
+    [Fact]
     public async Task GetByStockRangeAsync_ShouldReturnProductsWithinRange()
     {
         using var context = TestDbContextFactory.Create();
@@ -83,6 +99,21 @@ public class ProductRepositoryTests
         var result = await repository.GetByStockRangeAsync(10, 100);
 
         result.Should().ContainSingle(p => p.Id == 100_002);
+    }
+
+    [Fact]
+    public async Task AddAsync_WithMoreThanTwoDecimalPlaces_ShouldPreserveFullPrecisionOnInMemory()
+    {
+        // Contrast with RealSqlServer/ProductRepositoryRealSqlServerTests.cs: InMemory never
+        // applies the decimal(18,2) column facet from ProductConfiguration, so this value
+        // round-trips exactly here — unlike a real SQL Server, which silently rounds it.
+        using var context = TestDbContextFactory.Create();
+        var repository = new ProductRepository(context);
+        await repository.AddAsync(Product.Create(100_001, "Precision Test", null, 19.995m, 1));
+
+        var stored = await repository.GetByIdAsync(100_001);
+
+        stored!.Price.Should().Be(19.995m);
     }
 
     [Fact]

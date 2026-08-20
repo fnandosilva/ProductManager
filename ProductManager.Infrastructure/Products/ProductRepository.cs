@@ -31,11 +31,28 @@ public class ProductRepository : IProductRepository
         string name,
         CancellationToken cancellationToken = default)
     {
+        // The caller's search term is untrusted input, not a LIKE pattern: without escaping,
+        // literal '%'/'_'/'[' characters in a product name search (e.g. "100% Cotton") would be
+        // reinterpreted as SQL wildcards — a bare "%" search would then match every row instead
+        // of only names actually containing '%'. Only a real relational LIKE parser exercises
+        // this; EF Core's InMemory provider never surfaced it (see ProductManager.Infrastructure.Tests
+        // /RealSqlServer/ProductRepositoryRealSqlServerTests.cs).
+        var escapedName = EscapeLikePattern(name);
+
         return await _context.Products
             .AsNoTracking()
-            .Where(p => EF.Functions.Like(p.Name, $"%{name}%"))
+            .Where(p => EF.Functions.Like(p.Name, $"%{escapedName}%", "\\"))
             .OrderBy(p => p.Name)
             .ToListAsync(cancellationToken);
+    }
+
+    private static string EscapeLikePattern(string value)
+    {
+        return value
+            .Replace("\\", "\\\\")
+            .Replace("%", "\\%")
+            .Replace("_", "\\_")
+            .Replace("[", "\\[");
     }
 
     public async Task<IReadOnlyList<Product>> GetByStockRangeAsync(

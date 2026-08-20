@@ -70,6 +70,32 @@ public class ProductValidatorTests
     }
 
     [Fact]
+    public void CreateProductValidator_WithMoreThanTwoDecimalPlaces_ShouldHaveError()
+    {
+        // ProductConfiguration maps Price as decimal(18,2); without this rule the API would
+        // silently accept e.g. 19.995 and let SQL Server round it on write (see
+        // ProductManager.Infrastructure.Tests/RealSqlServer/ProductRepositoryRealSqlServerTests.cs).
+        var validator = new CreateProductCommandValidator();
+        var command = new CreateProductCommand("Valid Name", null, 19.995m, 5);
+
+        var result = validator.Validate(command);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreateProductCommand.Price));
+    }
+
+    [Fact]
+    public void CreateProductValidator_WithExactlyTwoDecimalPlaces_ShouldNotHaveError()
+    {
+        var validator = new CreateProductCommandValidator();
+        var command = new CreateProductCommand("Valid Name", null, 19.99m, 5);
+
+        var result = validator.Validate(command);
+
+        result.Errors.Should().NotContain(e => e.PropertyName == nameof(CreateProductCommand.Price));
+    }
+
+    [Fact]
     public void CreateProductValidator_WithNegativeStock_ShouldHaveError()
     {
         var validator = new CreateProductCommandValidator();
@@ -102,6 +128,18 @@ public class ProductValidatorTests
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(e => e.PropertyName == nameof(UpdateProductCommand.Stock));
+    }
+
+    [Fact]
+    public void UpdateProductValidator_WithMoreThanTwoDecimalPlaces_ShouldHaveError()
+    {
+        var validator = new UpdateProductCommandValidator();
+        var command = new UpdateProductCommand(100_001, "Valid Name", null, 19.995m, 5);
+
+        var result = validator.Validate(command);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(UpdateProductCommand.Price));
     }
 
     [Theory]

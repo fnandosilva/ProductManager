@@ -27,7 +27,8 @@ public sealed class UpdateProductCommandValidator : AbstractValidator<UpdateProd
             .When(x => x.Description is not null);
 
         RuleFor(x => x.Price)
-            .GreaterThan(0).WithMessage("Price must be greater than zero.");
+            .GreaterThan(0).WithMessage("Price must be greater than zero.")
+            .PrecisionScale(18, 2, false).WithMessage("Price cannot have more than 2 decimal places.");
 
         RuleFor(x => x.Stock)
             .GreaterThanOrEqualTo(0).WithMessage("Stock cannot be negative.");
