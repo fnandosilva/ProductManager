@@ -380,9 +380,9 @@ dotnet ef database drop --project ProductManager.Infrastructure --startup-projec
 
 ## Tests
 
-The solution ships with a comprehensive automated test suite covering every layer of the Clean Architecture, from domain rules up to full HTTP request/response round-trips.
+The solution ships with a comprehensive automated test suite covering every layer of the Clean Architecture, from domain rules up to full HTTP request/response round-trips — plus unit tests for the Angular frontend's services, interceptor, guards, and components.
 
-### Test projects
+### Test projects (backend)
 
 | Project | Type | What it covers |
 |---------|------|-----------------|
@@ -393,6 +393,28 @@ The solution ships with a comprehensive automated test suite covering every laye
 | `ProductManager.WebAPI.Integration.Tests` | Integration (`WebApplicationFactory` + EF Core InMemory) | Full HTTP pipeline: JWT registration/login flow, protected endpoints returning 401 without/with an invalid token, complete Products CRUD lifecycle, stock management, search, stock-level filtering, and validation/not-found error responses |
 
 Each test class in the integration suite spins up its own isolated in-memory database (a fresh `WebApplicationFactory` with a unique database name per test), so tests can run in parallel without interfering with each other.
+
+### Frontend tests (`client-app`)
+
+Angular's built-in test runner (`@angular/build:unit-test`, backed by Vitest + jsdom) covers the parts of the frontend that carry real logic, not just template scaffolding:
+
+| Spec file | What it covers |
+|---|---|
+| `core/services/auth.service.spec.ts` | Session restore from `localStorage` on startup (including corrupted-JSON recovery), `login()` storing the token/user and updating `isAuthenticated`, `logout()` clearing storage and redirecting to `/login` |
+| `core/services/product.service.spec.ts` | Every HTTP call the service makes (`getAll`, `getById`, `search`, `getByStockLevel`, `create`, `update`, `delete`, `addToStock`, `decrementStock`) — correct method, URL, query params, and body, asserted with `HttpTestingController` |
+| `core/interceptors/auth.interceptor.spec.ts` | Attaches `Authorization: Bearer <token>` only when a token exists; on a `401` logs out and redirects to `/login` only if a session was believed active; leaves non-401 errors untouched |
+| `core/guards/auth.guard.spec.ts` | `authGuard` allows authenticated users through and redirects unauthenticated ones to `/login`; `guestGuard` does the mirror image for `/products` |
+| `features/auth/login/login.spec.ts` | Invalid-form submission is blocked (and touches all fields), successful login navigates to `/products`, a failed login surfaces the server's error message, and double-submission while a request is in flight is prevented |
+| `features/products/product-list/product-list.spec.ts` | Loading/searching/filtering products (incl. the error path), the low-stock/total computed signals, and every dialog flow (create, edit, delete-with-confirmation, add/decrement stock) including the "dismissed without a result" cases |
+
+Run them with:
+
+```bash
+cd client-app
+npm test
+```
+
+(`app.spec.ts` — the CLI-generated smoke test for the root `App` shell component — is left as-is; it isn't where the app's actual logic lives.)
 
 ### Running the tests
 
@@ -467,6 +489,7 @@ dotnet test ProductManager.Infrastructure.Tests --filter "FullyQualifiedName~Pro
 - **Authentication/authorization** — duplicate email/username on register, wrong password on login, missing/invalid JWT token on protected endpoints (401)
 - **Infrastructure behavior** — case-insensitive search/email lookups, sequential/exhausted ID generation, BCrypt hash round-tripping, JWT claim/issuer/audience/expiry correctness, idempotent database seeding
 - **Concurrency safety** — 50 parallel `ProductIdGenerator` calls against a real SQL Server never produce a duplicate ID (see [Concurrency test against a real SQL Server](#concurrency-test-against-a-real-sql-server))
+- **Frontend logic** — auth session persistence/restore, the JWT interceptor's attach/401-logout behavior, route guards, login form validation/error handling, and the products table's load/search/filter/CRUD/stock-dialog flows (see [Frontend tests](#frontend-tests-client-app))
 
 ## Features
 
@@ -480,7 +503,7 @@ dotnet test ProductManager.Infrastructure.Tests --filter "FullyQualifiedName~Pro
 - **Swagger UI** — Interactive API documentation available in Development mode
 - **EF Core Migrations** — Code-first database with automatic migration on startup
 - **Auto-seeding** — Sample products automatically created on first run
-- **Comprehensive Test Suite** — 195 unit and integration tests covering domain, application, infrastructure, presentation, and full HTTP request/response flows, including a real-SQL-Server concurrency test proving ID generation is safe under concurrent access
+- **Comprehensive Test Suite** — 198 backend unit/integration tests (domain, application, infrastructure, presentation, full HTTP request/response flows, and a real-SQL-Server concurrency test that self-skips without a reachable SQL Server) plus 47 frontend unit tests covering services, the JWT interceptor, route guards, and key components
 - **Angular Frontend** — Login page with Angular Material, route guards, JWT interceptor, and a full Products management dashboard (see [Frontend](#frontend))
 - **Docker Compose** — One command spins up SQL Server, the API (auto-migrated/seeded), and the Angular frontend (see [Run with Docker](#run-with-docker))
 
