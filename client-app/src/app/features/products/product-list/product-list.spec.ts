@@ -113,6 +113,18 @@ describe('ProductList', () => {
     expect(component.activeFilter()).toBe('Stock between 0 and 10');
   });
 
+  it('filterByStock() with a cleared max field should request an unbounded upper limit, not 0', () => {
+    productService.getByStockLevel.mockReturnValue(of(products));
+    const component = createComponent();
+    // Angular's number input yields null (not undefined) once cleared.
+    component.stockFilterForm.setValue({ min: 5, max: null });
+
+    component.filterByStock();
+
+    expect(productService.getByStockLevel).toHaveBeenCalledWith(5, 2_147_483_647);
+    expect(component.activeFilter()).toBe('Stock 5+');
+  });
+
   it('clearFilters() should reset both forms and reload all products', () => {
     const component = createComponent();
     component.searchForm.setValue({ name: 'something' });

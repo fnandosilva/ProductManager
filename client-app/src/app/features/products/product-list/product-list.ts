@@ -21,6 +21,12 @@ import { StockDialog, StockDialogData } from '../stock-dialog/stock-dialog';
 
 const LOW_STOCK_THRESHOLD = 20;
 
+// Sentinel for "no upper bound" when the max-stock filter field is cleared (Angular's number
+// input yields `null`, not `undefined`, so `max ?? 0` was silently turning a cleared max into an
+// upper bound of 0 — filtering out every product instead of removing the upper bound). Capped at
+// Int32.MaxValue since the backend's Stock/GetProductsByStockLevelQuery.Max is a 32-bit int.
+const UNBOUNDED_MAX_STOCK = 2_147_483_647;
+
 @Component({
   selector: 'app-product-list',
   standalone: true,
@@ -96,11 +102,16 @@ export class ProductList implements OnInit {
 
   filterByStock(): void {
     const { min, max } = this.stockFilterForm.getRawValue();
+    const effectiveMin = min ?? 0;
+    const effectiveMax = max ?? UNBOUNDED_MAX_STOCK;
+
     this.isLoading.set(true);
-    this.productService.getByStockLevel(min ?? 0, max ?? 0).subscribe({
+    this.productService.getByStockLevel(effectiveMin, effectiveMax).subscribe({
       next: (products) => {
         this.products.set(products);
-        this.activeFilter.set(`Stock between ${min} and ${max}`);
+        this.activeFilter.set(
+          max == null ? `Stock ${effectiveMin}+` : `Stock between ${effectiveMin} and ${effectiveMax}`
+        );
         this.isLoading.set(false);
       },
       error: (error) => this.handleLoadError(error)
