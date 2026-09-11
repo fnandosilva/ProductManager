@@ -20,6 +20,7 @@ import { ProductFormDialog, ProductFormDialogData } from '../product-form-dialog
 import { StockDialog, StockDialogData } from '../stock-dialog/stock-dialog';
 
 const LOW_STOCK_THRESHOLD = 20;
+const PAGE_SIZE = 15;
 
 // Sentinel for "no upper bound" when the max-stock filter field is cleared (Angular's number
 // input yields `null`, not `undefined`, so `max ?? 0` was silently turning a cleared max into an
@@ -54,7 +55,9 @@ export class ProductList implements OnInit {
   private readonly snackBar = inject(MatSnackBar);
 
   readonly displayedColumns = ['id', 'name', 'description', 'price', 'stock', 'actions'];
+  readonly pageSize = PAGE_SIZE;
   readonly products = signal<Product[]>([]);
+  readonly currentPage = signal(1);
   readonly isLoading = signal(false);
   readonly activeFilter = signal<string | null>(null);
   readonly lowStockThreshold = LOW_STOCK_THRESHOLD;
@@ -66,12 +69,23 @@ export class ProductList implements OnInit {
   readonly totalStockUnits = computed(() => this.products().reduce((sum, product) => sum + product.stock, 0));
   readonly lowStockCount = computed(() => this.products().filter((product) => this.isLowStock(product)).length);
 
+  readonly totalPages = computed(() => Math.max(1, Math.ceil(this.totalProducts() / this.pageSize)));
+  readonly safePage = computed(() => Math.min(Math.max(this.currentPage(), 1), this.totalPages()));
+  readonly pageStart = computed(() => (this.totalProducts() === 0 ? 0 : (this.safePage() - 1) * this.pageSize + 1));
+  readonly pageEnd = computed(() => Math.min(this.safePage() * this.pageSize, this.totalProducts()));
+  readonly pagedProducts = computed(() => {
+    const start = (this.safePage() - 1) * this.pageSize;
+    return this.products().slice(start, start + this.pageSize);
+  });
+  readonly visiblePages = computed(() => this.buildVisiblePages(this.safePage(), this.totalPages()));
+
   ngOnInit(): void {
     this.loadAll();
   }
 
   loadAll(): void {
     this.activeFilter.set(null);
+    this.currentPage.set(1);
     this.isLoading.set(true);
     this.productService.getAll().subscribe({
       next: (products) => {
@@ -89,6 +103,7 @@ export class ProductList implements OnInit {
       return;
     }
 
+    this.currentPage.set(1);
     this.isLoading.set(true);
     this.productService.search(name).subscribe({
       next: (products) => {
@@ -105,6 +120,7 @@ export class ProductList implements OnInit {
     const effectiveMin = min ?? 0;
     const effectiveMax = max ?? UNBOUNDED_MAX_STOCK;
 
+    this.currentPage.set(1);
     this.isLoading.set(true);
     this.productService.getByStockLevel(effectiveMin, effectiveMax).subscribe({
       next: (products) => {
@@ -122,6 +138,22 @@ export class ProductList implements OnInit {
     this.searchForm.reset({ name: '' });
     this.stockFilterForm.reset({ min: 0, max: 1000 });
     this.loadAll();
+  }
+
+  goToPage(page: number): void {
+    if (page < 1 || page > this.totalPages() || page === this.safePage()) {
+      return;
+    }
+
+    this.currentPage.set(page);
+  }
+
+  previousPage(): void {
+    this.goToPage(this.safePage() - 1);
+  }
+
+  nextPage(): void {
+    this.goToPage(this.safePage() + 1);
   }
 
   isLowStock(product: Product): boolean {
@@ -217,6 +249,26 @@ export class ProductList implements OnInit {
         error: (error) => this.showError(error, 'Could not update stock.')
       });
     });
+  }
+
+  private buildVisiblePages(current: number, total: number): Array<number | 'ellipsis'> {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, index) => index + 1);
+    }
+
+    const pages = new Set<number>([1, total, current - 1, current, current + 1]);
+    const sorted = [...pages].filter((page) => page >= 1 && page <= total).sort((a, b) => a - b);
+
+    const visible: Array<number | 'ellipsis'> = [];
+    for (const page of sorted) {
+      const previous = visible[visible.length - 1];
+      if (typeof previous === 'number' && page - previous > 1) {
+        visible.push('ellipsis');
+      }
+      visible.push(page);
+    }
+
+    return visible;
   }
 
   private handleLoadError(error: unknown): void {

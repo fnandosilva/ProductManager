@@ -25,6 +25,16 @@ describe('ProductList', () => {
     { id: 100_002, name: 'Premium Eyeglass Case', description: 'Case', price: 24.5, stock: 5 }
   ];
 
+  function createProducts(count: number): Product[] {
+    return Array.from({ length: count }, (_, index) => ({
+      id: 100_001 + index,
+      name: `Product ${index + 1}`,
+      description: `Description ${index + 1}`,
+      price: 10 + index,
+      stock: 50
+    }));
+  }
+
   function createComponent(): ProductList {
     return TestBed.createComponent(ProductList).componentInstance;
   }
@@ -153,6 +163,96 @@ describe('ProductList', () => {
     expect(component.totalProducts()).toBe(2);
     expect(component.totalStockUnits()).toBe(155);
     expect(component.lowStockCount()).toBe(1);
+  });
+
+  it('should show all products on a single page when there are 15 or fewer', () => {
+    productService.getAll.mockReturnValue(of(createProducts(15)));
+    const component = createComponent();
+
+    component.ngOnInit();
+
+    expect(component.pagedProducts()).toHaveLength(15);
+    expect(component.totalPages()).toBe(1);
+    expect(component.pageStart()).toBe(1);
+    expect(component.pageEnd()).toBe(15);
+  });
+
+  it('should page 16+ products 15 per page', () => {
+    productService.getAll.mockReturnValue(of(createProducts(16)));
+    const component = createComponent();
+
+    component.ngOnInit();
+
+    expect(component.pagedProducts()).toHaveLength(15);
+    expect(component.totalPages()).toBe(2);
+    expect(component.pageStart()).toBe(1);
+    expect(component.pageEnd()).toBe(15);
+
+    component.goToPage(2);
+
+    expect(component.pagedProducts()).toHaveLength(1);
+    expect(component.pagedProducts()[0].id).toBe(100_016);
+    expect(component.pageStart()).toBe(16);
+    expect(component.pageEnd()).toBe(16);
+  });
+
+  it('search() should reset to page 1', () => {
+    productService.getAll.mockReturnValue(of(createProducts(16)));
+    productService.search.mockReturnValue(of(createProducts(16)));
+    const component = createComponent();
+    component.ngOnInit();
+    component.goToPage(2);
+    component.searchForm.setValue({ name: 'Lens' });
+
+    component.search();
+
+    expect(component.currentPage()).toBe(1);
+    expect(component.pagedProducts()).toHaveLength(15);
+  });
+
+  it('filterByStock() should reset to page 1', () => {
+    productService.getAll.mockReturnValue(of(createProducts(16)));
+    productService.getByStockLevel.mockReturnValue(of(createProducts(16)));
+    const component = createComponent();
+    component.ngOnInit();
+    component.goToPage(2);
+
+    component.filterByStock();
+
+    expect(component.currentPage()).toBe(1);
+  });
+
+  it('loadAll() should reset to page 1', () => {
+    productService.getAll.mockReturnValue(of(createProducts(16)));
+    const component = createComponent();
+    component.ngOnInit();
+    component.goToPage(2);
+
+    component.loadAll();
+
+    expect(component.currentPage()).toBe(1);
+    expect(component.pagedProducts()).toHaveLength(15);
+  });
+
+  it('safePage should clamp when the current page is beyond the last page', () => {
+    const component = createComponent();
+    component.products.set(createProducts(2));
+    component.currentPage.set(9);
+
+    expect(component.safePage()).toBe(1);
+    expect(component.pagedProducts()).toHaveLength(2);
+  });
+
+  it('should report an empty range when there are no products', () => {
+    productService.getAll.mockReturnValue(of([]));
+    const component = createComponent();
+
+    component.ngOnInit();
+
+    expect(component.pageStart()).toBe(0);
+    expect(component.pageEnd()).toBe(0);
+    expect(component.pagedProducts()).toHaveLength(0);
+    expect(component.totalPages()).toBe(1);
   });
 
   it('openCreateDialog() should reload and notify on a created product', () => {

@@ -97,7 +97,7 @@ docker compose up --build
 This will, in order:
 
 1. Start **SQL Server 2022** in a container with a persisted volume (`sqlserver_data`), and wait until it reports healthy.
-2. Build and start the **API** container. On startup, the API automatically **applies pending EF Core migrations and seeds the 5 sample products plus one demo login** — no manual migration/seeding/registration step is required. This happens because Docker Compose runs with `ASPNETCORE_ENVIRONMENT=Development` by default; see [Migrations and seeding](#migrations-and-seeding) for how this is gated (and what changes for a real production deployment).
+2. Build and start the **API** container. On startup, the API automatically **applies pending EF Core migrations and seeds the 20 sample products plus one demo login** — no manual migration/seeding/registration step is required. This happens because Docker Compose runs with `ASPNETCORE_ENVIRONMENT=Development` by default; see [Migrations and seeding](#migrations-and-seeding) for how this is gated (and what changes for a real production deployment).
 3. Build and start the **Angular frontend**, served by nginx. nginx proxies any `/api/*` request to the API container (same pattern as the dev `proxy.conf.json`), so the frontend and API share an origin and no CORS configuration is required in the browser.
 
 ### 3. Access the app
@@ -312,7 +312,7 @@ This is now two independently-controlled jobs, each with its own config flag (`A
 |---|---|---|---|
 | Apply pending EF Core migrations | `DatabaseMigrator.EnsureDatabaseReadyAsync` | `Database:ApplyMigrationsOnStartup = false` — **fails fast** at startup instead if the schema is behind | `true` — convenient for local/Docker-dev |
 | Seed the `ProductIdSequences` counter row (required for ID generation to work at all) | `DatabaseSeeder.SeedRequiredDataAsync` | Always runs, in every environment — this is baseline data the app can't function without, not sample data | Always runs |
-| Seed 5 sample products + the `demo` / `Demo@1234` login | `DatabaseSeeder.SeedSampleDataAsync` | `Database:SeedSampleData = false` — never runs against a real production database | `true` — the out-of-the-box demo experience |
+| Seed 20 sample products + the `demo` / `Demo@1234` login | `DatabaseSeeder.SeedSampleDataAsync` | `Database:SeedSampleData = false` — never runs against a real production database | `true` — the out-of-the-box demo experience |
 
 For a real production deployment (`ASPNETCORE_ENVIRONMENT=Production`, or any environment other
 than Development that doesn't explicitly opt back in):
@@ -468,7 +468,7 @@ Angular's built-in test runner (`@angular/build:unit-test`, backed by Vitest + j
 | `core/interceptors/auth.interceptor.spec.ts` | Attaches `Authorization: Bearer <token>` only when a token exists and skips auth endpoints; on a `401` refreshes once and retries, or logs out if refresh is impossible/fails; leaves non-401 errors untouched |
 | `core/guards/auth.guard.spec.ts` | `authGuard` allows authenticated users through and redirects unauthenticated ones to `/login`; `guestGuard` does the mirror image for `/products` |
 | `features/auth/login/login.spec.ts` | Invalid-form submission is blocked (and touches all fields), successful login navigates to `/products`, a failed login surfaces the server's error message, and double-submission while a request is in flight is prevented |
-| `features/products/product-list/product-list.spec.ts` | Loading/searching/filtering products (incl. the error path), the low-stock/total computed signals, and every dialog flow (create, edit, delete-with-confirmation, add/decrement stock) including the "dismissed without a result" cases |
+| `features/products/product-list/product-list.spec.ts` | Loading/searching/filtering products (incl. the error path), 15-per-page paging, the low-stock/total computed signals, and every dialog flow (create, edit, delete-with-confirmation, add/decrement stock) including the "dismissed without a result" cases |
 
 Run them with:
 
@@ -584,7 +584,7 @@ dotnet test ProductManager.Infrastructure.Tests --filter "FullyQualifiedName~Pro
 - **Swagger UI** — Interactive API documentation available in Development mode
 - **EF Core Migrations** — Code-first database; auto-applied on startup only in Development, fail-fast otherwise (see [Migrations and seeding](#migrations-and-seeding))
 - **Auto-seeding** — Sample products + a demo login created on first run, Development-only by default
-- **Comprehensive Test Suite** — 239 backend unit/integration tests (domain, application, infrastructure, presentation, full HTTP request/response flows, and a handful of real-SQL-Server-only tests that self-skip without a reachable SQL Server — see [Testing against a real SQL Server](#testing-against-a-real-sql-server)) plus 53 frontend unit tests covering services, the JWT interceptor, route guards, and key components
+- **Comprehensive Test Suite** — 239 backend unit/integration tests (domain, application, infrastructure, presentation, full HTTP request/response flows, and a handful of real-SQL-Server-only tests that self-skip without a reachable SQL Server — see [Testing against a real SQL Server](#testing-against-a-real-sql-server)) plus 61 frontend unit tests covering services, the JWT interceptor, route guards, and key components
 - **Angular Frontend** — Login page with Angular Material, route guards, JWT interceptor, and a full Products management dashboard (see [Frontend](#frontend))
 - **Docker Compose** — One command spins up SQL Server, the API (auto-migrated/seeded), and the Angular frontend (see [Run with Docker](#run-with-docker))
 
@@ -596,6 +596,6 @@ dotnet test ProductManager.Infrastructure.Tests --filter "FullyQualifiedName~Pro
 - Product IDs are auto-generated as unique 6-digit numbers (100,000–999,999)
 - ID generation uses a database sequence with row-level locking for multi-instance safety
 - Stock decrement/add-to-stock are atomic (row-locked) read-modify-writes, safe under concurrent requests against the same product (see [Stock concurrency](#stock-concurrency))
-- The database is seeded with 5 sample products + a demo login on first startup, in Development only (see [Migrations and seeding](#migrations-and-seeding))
+- The database is seeded with 20 sample products + a demo login on first startup, in Development only (see [Migrations and seeding](#migrations-and-seeding))
 - Swagger UI is only enabled in Development environment for security
 - **Swagger + Microsoft.OpenApi v2:** Swashbuckle.AspNetCore 10.x uses `Microsoft.OpenApi` 2.x, which moved its types from the `Microsoft.OpenApi.Models` namespace straight into `Microsoft.OpenApi`, and changed `AddSecurityRequirement` to take a `document =>` delegate returning an `OpenApiSecurityRequirement` keyed by `OpenApiSecuritySchemeReference`. The JWT "Authorize" button in Swagger UI is configured accordingly in `Program.cs` and has been verified to work end-to-end.

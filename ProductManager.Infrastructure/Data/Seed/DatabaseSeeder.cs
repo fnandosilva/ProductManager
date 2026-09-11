@@ -51,13 +51,28 @@ public static class DatabaseSeeder
             Product.Create(100_002, "Premium Eyeglass Case", "Hard-shell protective case", 24.50m, 80),
             Product.Create(100_003, "Anti-Fog Wipes", "Single-use anti-fog lens wipes (30 pack)", 8.75m, 200),
             Product.Create(100_004, "Microfiber Cloth", "Ultra-soft cleaning cloth", 5.99m, 500),
-            Product.Create(100_005, "Adjustable Nose Pads", "Silicone replacement nose pads", 6.25m, 35)
+            Product.Create(100_005, "Adjustable Nose Pads", "Silicone replacement nose pads", 6.25m, 35),
+            Product.Create(100_006, "Blue Light Filter Spray", "Anti-reflective coating refresher", 18.40m, 90),
+            Product.Create(100_007, "Titanium Screw Kit", "Replacement hinge screws (12 pack)", 9.50m, 60),
+            Product.Create(100_008, "Sport Strap", "Adjustable retainer for active wear", 14.25m, 120),
+            Product.Create(100_009, "Polarized Clip-Ons", "Universal polarized clip-on sunglasses", 32.00m, 45),
+            Product.Create(100_010, "Lens Pouches", "Soft microfiber pouches (5 pack)", 11.80m, 210),
+            Product.Create(100_011, "Temple Tips", "Comfort silicone temple tips", 7.40m, 18),
+            Product.Create(100_012, "UV Protection Spray", "UV400 lens protection spray", 16.90m, 75),
+            Product.Create(100_013, "Reading Magnifier", "Pocket 3x optical magnifier", 21.00m, 40),
+            Product.Create(100_014, "Frame Polish", "Gentle acetate frame polish", 13.50m, 55),
+            Product.Create(100_015, "Nose Bridge Cushions", "Adhesive silicone cushions (8 pack)", 4.99m, 12),
+            Product.Create(100_016, "Travel Lens Kit", "Cleaner, cloth, and case combo", 29.90m, 70),
+            Product.Create(100_017, "Kids Frame Cord", "Breakaway cord for children's frames", 8.20m, 95),
+            Product.Create(100_018, "Anti-Scratch Wipes", "Protective coating wipes (20 pack)", 10.75m, 160),
+            Product.Create(100_019, "Optician Screwdriver", "Precision 5-in-1 screwdriver set", 19.99m, 28),
+            Product.Create(100_020, "Display Stand", "Acrylic two-tier frame display", 27.50m, 22)
         };
 
         context.Products.AddRange(seedProducts);
 
         var sequence = await context.ProductIdSequences.SingleAsync(cancellationToken);
-        sequence.NextProductId = 100_006;
+        sequence.NextProductId = 100_021;
 
         await context.SaveChangesAsync(cancellationToken);
     }

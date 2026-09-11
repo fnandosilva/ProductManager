@@ -95,7 +95,7 @@
       }
     </div>
   } @else {
-    <table mat-table [dataSource]="products()" class="products-table">
+    <table mat-table [dataSource]="pagedProducts()" class="products-table">
       <ng-container matColumnDef="id">
         <th mat-header-cell *matHeaderCellDef>ID</th>
         <td mat-cell *matCellDef="let product">
@@ -173,5 +173,52 @@
       <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
       <tr mat-row *matRowDef="let row; columns: displayedColumns" class="product-row"></tr>
     </table>
+
+    <div class="pagination-bar">
+      <p class="pagination-range">
+        Showing {{ pageStart() }}–{{ pageEnd() }} of {{ totalProducts() }}
+      </p>
+
+      @if (totalPages() > 1) {
+        <nav class="pagination-controls" aria-label="Product pages">
+          <button
+            type="button"
+            class="page-btn"
+            [disabled]="safePage() === 1"
+            aria-label="Previous page"
+            (click)="previousPage()"
+          >
+            <mat-icon>chevron_left</mat-icon>
+          </button>
+
+          @for (page of visiblePages(); track $index) {
+            @if (page === 'ellipsis') {
+              <span class="page-ellipsis" aria-hidden="true">…</span>
+            } @else {
+              <button
+                type="button"
+                class="page-btn page-btn--number"
+                [class.page-btn--active]="page === safePage()"
+                [attr.aria-current]="page === safePage() ? 'page' : null"
+                [attr.aria-label]="'Page ' + page"
+                (click)="goToPage(page)"
+              >
+                {{ page }}
+              </button>
+            }
+          }
+
+          <button
+            type="button"
+            class="page-btn"
+            [disabled]="safePage() === totalPages()"
+            aria-label="Next page"
+            (click)="nextPage()"
+          >
+            <mat-icon>chevron_right</mat-icon>
+          </button>
+        </nav>
+      }
+    </div>
   }
 </div>

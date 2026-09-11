@@ -83,7 +83,7 @@ public class ProductsApiTests : IAsyncLifetime
 
         var products = await response.Content.ReadFromJsonAsync<List<ProductResponse>>();
         products.Should().NotBeNull();
-        products!.Should().HaveCount(5);
+        products!.Should().HaveCount(20);
         products.Should().OnlyContain(p => p.Stock >= 0);
     }
 
@@ -91,13 +91,13 @@ public class ProductsApiTests : IAsyncLifetime
     public async Task GetProducts_WithoutManualSeeding_ShouldStillReturnAutoSeededProducts()
     {
         // Program.cs seeds the database automatically on startup, so a brand-new
-        // test database always contains the 5 seed products even without calling
+        // test database always contains the 20 seed products even without calling
         // DatabaseSeeder explicitly from the test.
         var response = await _client.GetAsync("/api/products");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var products = await response.Content.ReadFromJsonAsync<List<ProductResponse>>();
-        products.Should().HaveCount(5);
+        products.Should().HaveCount(20);
     }
 
     // ---------- GET /api/products/{id} ----------

@@ -39,11 +39,11 @@ public class DatabaseSeederTests
         await DatabaseSeeder.SeedSampleDataAsync(context);
 
         var sequence = await context.ProductIdSequences.SingleAsync();
-        sequence.NextProductId.Should().Be(100_006);
+        sequence.NextProductId.Should().Be(100_021);
 
         var products = await context.Products.ToListAsync();
-        products.Should().HaveCount(5);
-        products.Should().OnlyContain(p => p.Id >= 100_001 && p.Id <= 100_005);
+        products.Should().HaveCount(20);
+        products.Should().OnlyContain(p => p.Id >= 100_001 && p.Id <= 100_020);
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class DatabaseSeederTests
         await DatabaseSeeder.SeedSampleDataAsync(context);
 
         var products = await context.Products.ToListAsync();
-        products.Should().HaveCount(5);
+        products.Should().HaveCount(20);
     }
 
     [Fact]
