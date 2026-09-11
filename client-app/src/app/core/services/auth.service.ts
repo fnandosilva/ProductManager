@@ -7,6 +7,7 @@ import { environment } from '../../../environments/environment';
 import { AuthResponse, AuthUser, LoginRequest } from '../models/auth.model';
 
 const TOKEN_KEY = 'pm_token';
+const REFRESH_TOKEN_KEY = 'pm_refresh_token';
 const USER_KEY = 'pm_user';
 
 @Injectable({ providedIn: 'root' })
@@ -28,22 +29,47 @@ export class AuthService {
       .pipe(tap((response) => this.setSession(response)));
   }
 
+  refreshToken(): Observable<AuthResponse> {
+    return this.http
+      .post<AuthResponse>(`${this.baseUrl}/refresh`, { refreshToken: this.getRefreshToken() })
+      .pipe(tap((response) => this.setSession(response)));
+  }
+
   logout(): void {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-    this.currentUserSignal.set(null);
+    const refreshToken = this.getRefreshToken();
+    this.clearSession();
     this.router.navigate(['/login']);
+
+    if (refreshToken) {
+      this.http.post(`${this.baseUrl}/revoke`, { refreshToken }).subscribe({
+        error: () => {
+          /* best-effort revoke; session is already cleared */
+        }
+      });
+    }
   }
 
   getToken(): string | null {
     return localStorage.getItem(TOKEN_KEY);
   }
 
+  getRefreshToken(): string | null {
+    return localStorage.getItem(REFRESH_TOKEN_KEY);
+  }
+
   private setSession(response: AuthResponse): void {
     const user: AuthUser = { username: response.username, email: response.email };
     localStorage.setItem(TOKEN_KEY, response.token);
+    localStorage.setItem(REFRESH_TOKEN_KEY, response.refreshToken);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
     this.currentUserSignal.set(user);
+  }
+
+  private clearSession(): void {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    this.currentUserSignal.set(null);
   }
 
   private readStoredUser(): AuthUser | null {

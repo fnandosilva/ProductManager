@@ -1,7 +1,9 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using ProductManager.Application.Auth.Commands.Login;
+using ProductManager.Application.Auth.Commands.Refresh;
 using ProductManager.Application.Auth.Commands.Register;
+using ProductManager.Application.Auth.Commands.Revoke;
 
 namespace ProductManager.Presentation.Auth;
 
@@ -32,5 +34,23 @@ public class AuthController : ControllerBase
         var response = await _sender.Send(command, cancellationToken);
 
         return Ok(response);
+    }
+
+    [HttpPost("refresh")]
+    public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
+    {
+        var command = new RefreshTokenCommand(request.RefreshToken);
+        var response = await _sender.Send(command, cancellationToken);
+
+        return Ok(response);
+    }
+
+    [HttpPost("revoke")]
+    public async Task<IActionResult> Revoke([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
+    {
+        var command = new RevokeTokenCommand(request.RefreshToken);
+        await _sender.Send(command, cancellationToken);
+
+        return Ok();
     }
 }

@@ -12,15 +12,21 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, Au
     private readonly IAuthRepository _authRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenGenerator _jwtTokenGenerator;
+    private readonly IRefreshTokenGenerator _refreshTokenGenerator;
+    private readonly IRefreshTokenRepository _refreshTokenRepository;
 
     public RegisterCommandHandler(
         IAuthRepository authRepository,
         IPasswordHasher passwordHasher,
-        IJwtTokenGenerator jwtTokenGenerator)
+        IJwtTokenGenerator jwtTokenGenerator,
+        IRefreshTokenGenerator refreshTokenGenerator,
+        IRefreshTokenRepository refreshTokenRepository)
     {
         _authRepository = authRepository;
         _passwordHasher = passwordHasher;
         _jwtTokenGenerator = jwtTokenGenerator;
+        _refreshTokenGenerator = refreshTokenGenerator;
+        _refreshTokenRepository = refreshTokenRepository;
     }
 
     public async Task<AuthResponse> Handle(RegisterCommand request, CancellationToken cancellationToken)
@@ -40,8 +46,12 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, Au
 
         await _authRepository.AddAsync(user, cancellationToken);
 
-        var token = _jwtTokenGenerator.GenerateToken(user);
+        var accessToken = _jwtTokenGenerator.GenerateToken(user);
+        var generated = _refreshTokenGenerator.Generate();
+        await _refreshTokenRepository.AddAsync(
+            RefreshToken.Create(user, generated.TokenHash, generated.ExpiresAt),
+            cancellationToken);
 
-        return new AuthResponse(token, user.Username, user.Email);
+        return new AuthResponse(accessToken, user.Username, user.Email, generated.Token);
     }
 }

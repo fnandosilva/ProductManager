@@ -153,8 +153,10 @@ dotnet ef database update --project ProductManager.Infrastructure --startup-proj
 
 | Method | Route | Description |
 |--------|-------|-------------|
-| POST | `/api/auth/register` | Register a new user |
-| POST | `/api/auth/login` | Login and receive JWT token |
+| POST | `/api/auth/register` | Register a new user and receive access + refresh tokens |
+| POST | `/api/auth/login` | Login and receive access + refresh tokens |
+| POST | `/api/auth/refresh` | Rotate the refresh token and issue a new access token |
+| POST | `/api/auth/revoke` | Revoke a refresh token (used on logout) |
 
 ### Products (Requires Authentication)
 
@@ -196,7 +198,8 @@ Response:
 {
   "token": "eyJhbGciOi...",
   "username": "testuser",
-  "email": "test@example.com"
+  "email": "test@example.com",
+  "refreshToken": "p8xQ..."
 }
 ```
 
@@ -244,7 +247,8 @@ JWT settings live under `JwtSettings` in `appsettings.json`:
   "SecretKey": "",
   "Issuer": "ProductManagerAPI",
   "Audience": "ProductManagerClient",
-  "ExpiryMinutes": "60"
+  "ExpiryMinutes": "15",
+  "RefreshTokenExpiryDays": "7"
 }
 ```
 
@@ -368,7 +372,7 @@ The [`client-app`](./client-app) folder contains the Angular frontend (latest An
 
 - A user-friendly **Login** page (Material card, reactive form validation, error handling) required before the rest of the app is accessible. There's no self-service registration screen by design (see [Authentication](#authentication)) — instead, the API seeds one demo login (`demo` / `Demo@1234`) on first run in Development so the app works immediately out of the box (see [Migrations and seeding](#migrations-and-seeding)); additional users can be created via `POST /api/auth/register`.
 - Route guards that redirect unauthenticated users to `/login` and keep authenticated users out of `/login`.
-- An HTTP interceptor that attaches the JWT to every API request and signs the user out automatically on a `401`.
+- An HTTP interceptor that attaches the JWT to API requests (except login/refresh/revoke), silently refreshes expired access tokens, and signs the user out only if refresh fails.
 - A **Products** dashboard: table of all products with search-by-name, filter-by-stock-range, create/edit dialog, add-to-stock/decrement-stock dialogs, and a delete confirmation dialog.
 
 ### Quick start
@@ -449,7 +453,7 @@ The solution ships with a comprehensive automated test suite covering every laye
 | `ProductManager.Infrastructure.Tests` | Unit (EF Core InMemory), plus opt-in real-SQL-Server suites | `ProductRepository` (including the atomic `DecrementStockAsync`/`AddToStockAsync` — see [Stock concurrency](#stock-concurrency)), `AuthRepository`, `ProductIdGenerator` (sequential 6-digit ID allocation + exhaustion), `PasswordHasher` (BCrypt), `JwtTokenGenerator` (claims/expiry/issuer), `DatabaseMigrator`, `DatabaseSeeder` (required baseline data vs. sample/demo data — see [Migrations and seeding](#migrations-and-seeding)). Also the `RealSqlServer/` and `Security/ProductIdGeneratorConcurrencyTests` suites — see [below](#testing-against-a-real-sql-server) — which prove behavior the InMemory provider can't: real concurrent locking, `decimal(18,2)` rounding, SQL `LIKE` wildcard semantics, and collation-driven case-insensitive uniqueness |
 | `ProductManager.Presentation.Tests` | Unit | `ProductsController` and `AuthController` action methods, using a mocked `ISender` to assert the correct MediatR request is dispatched and the correct `IActionResult` (200/201/204/etc.) is returned |
 | `ProductManager.WebAPI.Tests` | Unit | `ExceptionHandlingMiddleware` — verifies every exception type (`NotFoundException`, `ValidationException`, `InvalidOperationException`, `ArgumentException`, unhandled) maps to the correct HTTP status code and JSON error body |
-| `ProductManager.WebAPI.Integration.Tests` | Integration (`WebApplicationFactory` + EF Core InMemory) | Full HTTP pipeline: JWT registration/login flow, protected endpoints returning 401 without/with an invalid token, complete Products CRUD lifecycle, stock management, search, stock-level filtering, and validation/not-found error responses |
+| `ProductManager.WebAPI.Integration.Tests` | Integration (`WebApplicationFactory` + EF Core InMemory) | Full HTTP pipeline: JWT registration/login/refresh/revoke flow, protected endpoints returning 401 without/with an invalid token, complete Products CRUD lifecycle, stock management, search, stock-level filtering, and validation/not-found error responses |
 
 Each test class in the integration suite spins up its own isolated in-memory database (a fresh `WebApplicationFactory` with a unique database name per test), so tests can run in parallel without interfering with each other.
 
@@ -461,7 +465,7 @@ Angular's built-in test runner (`@angular/build:unit-test`, backed by Vitest + j
 |---|---|
 | `core/services/auth.service.spec.ts` | Session restore from `localStorage` on startup (including corrupted-JSON recovery), `login()` storing the token/user and updating `isAuthenticated`, `logout()` clearing storage and redirecting to `/login` |
 | `core/services/product.service.spec.ts` | Every HTTP call the service makes (`getAll`, `getById`, `search`, `getByStockLevel`, `create`, `update`, `delete`, `addToStock`, `decrementStock`) — correct method, URL, query params, and body, asserted with `HttpTestingController` |
-| `core/interceptors/auth.interceptor.spec.ts` | Attaches `Authorization: Bearer <token>` only when a token exists; on a `401` logs out and redirects to `/login` only if a session was believed active; leaves non-401 errors untouched |
+| `core/interceptors/auth.interceptor.spec.ts` | Attaches `Authorization: Bearer <token>` only when a token exists and skips auth endpoints; on a `401` refreshes once and retries, or logs out if refresh is impossible/fails; leaves non-401 errors untouched |
 | `core/guards/auth.guard.spec.ts` | `authGuard` allows authenticated users through and redirects unauthenticated ones to `/login`; `guestGuard` does the mirror image for `/products` |
 | `features/auth/login/login.spec.ts` | Invalid-form submission is blocked (and touches all fields), successful login navigates to `/products`, a failed login surfaces the server's error message, and double-submission while a request is in flight is prevented |
 | `features/products/product-list/product-list.spec.ts` | Loading/searching/filtering products (incl. the error path), the low-stock/total computed signals, and every dialog flow (create, edit, delete-with-confirmation, add/decrement stock) including the "dismissed without a result" cases |
@@ -566,11 +570,11 @@ dotnet test ProductManager.Infrastructure.Tests --filter "FullyQualifiedName~Pro
 - **Authentication/authorization** — duplicate email/username on register, wrong password on login, missing/invalid JWT token on protected endpoints (401)
 - **Infrastructure behavior** — case-insensitive search/email lookups, sequential/exhausted ID generation, BCrypt hash round-tripping, JWT claim/issuer/audience/expiry correctness, idempotent database seeding
 - **Real-SQL-Server-only behavior** — concurrency safety (50 parallel `ProductIdGenerator` calls never produce a duplicate ID; concurrent stock decrements/additions never lose an update or oversell — see [Stock concurrency](#stock-concurrency)), `decimal(18,2)` rounding, `LIKE` wildcard escaping, collation-driven case-insensitive username uniqueness/lookup, and the migration fail-fast guard (see [Testing against a real SQL Server](#testing-against-a-real-sql-server))
-- **Frontend logic** — auth session persistence/restore, the JWT interceptor's attach/401-logout behavior, route guards, login form validation/error handling, and the products table's load/search/filter/CRUD/stock-dialog flows (see [Frontend tests](#frontend-tests-client-app))
+- **Frontend logic** — auth session persistence/restore, refresh-token storage, the JWT interceptor's attach/refresh-on-401/logout behavior, route guards, login form validation/error handling, and the products table's load/search/filter/CRUD/stock-dialog flows (see [Frontend tests](#frontend-tests-client-app))
 
 ## Features
 
-- **JWT Authentication** — Secure token-based authentication with user registration and login
+- **JWT Authentication** — Access + refresh tokens with registration, login, rotation, and revoke
 - **CORS Whitelist** — Configuration-driven, fail-closed cross-origin policy
 - **Clean Architecture** — Domain-driven design with clear separation of concerns
 - **CQRS + MediatR** — Command/Query separation with pipeline behaviors
@@ -580,7 +584,7 @@ dotnet test ProductManager.Infrastructure.Tests --filter "FullyQualifiedName~Pro
 - **Swagger UI** — Interactive API documentation available in Development mode
 - **EF Core Migrations** — Code-first database; auto-applied on startup only in Development, fail-fast otherwise (see [Migrations and seeding](#migrations-and-seeding))
 - **Auto-seeding** — Sample products + a demo login created on first run, Development-only by default
-- **Comprehensive Test Suite** — 220 backend unit/integration tests (domain, application, infrastructure, presentation, full HTTP request/response flows, and a handful of real-SQL-Server-only tests that self-skip without a reachable SQL Server — see [Testing against a real SQL Server](#testing-against-a-real-sql-server)) plus 47 frontend unit tests covering services, the JWT interceptor, route guards, and key components
+- **Comprehensive Test Suite** — 239 backend unit/integration tests (domain, application, infrastructure, presentation, full HTTP request/response flows, and a handful of real-SQL-Server-only tests that self-skip without a reachable SQL Server — see [Testing against a real SQL Server](#testing-against-a-real-sql-server)) plus 53 frontend unit tests covering services, the JWT interceptor, route guards, and key components
 - **Angular Frontend** — Login page with Angular Material, route guards, JWT interceptor, and a full Products management dashboard (see [Frontend](#frontend))
 - **Docker Compose** — One command spins up SQL Server, the API (auto-migrated/seeded), and the Angular frontend (see [Run with Docker](#run-with-docker))
 
@@ -588,7 +592,7 @@ dotnet test ProductManager.Infrastructure.Tests --filter "FullyQualifiedName~Pro
 
 - **Authentication:** All product endpoints require a valid JWT token in the `Authorization: Bearer <token>` header
 - **User Storage:** User credentials are stored securely with BCrypt password hashing
-- **Token Expiry:** JWT tokens expire after 60 minutes (configurable in `appsettings.json`)
+- **Token Expiry:** Access JWTs expire after 15 minutes; refresh tokens expire after 7 days (both configurable in `appsettings.json`)
 - Product IDs are auto-generated as unique 6-digit numbers (100,000–999,999)
 - ID generation uses a database sequence with row-level locking for multi-instance safety
 - Stock decrement/add-to-stock are atomic (row-locked) read-modify-writes, safe under concurrent requests against the same product (see [Stock concurrency](#stock-concurrency))

@@ -7,6 +7,7 @@ export interface AuthResponse {
   token: string;
   username: string;
   email: string;
+  refreshToken: string;
 }
 
 export interface AuthUser {

@@ -35,6 +35,7 @@ public class AuthApiTests : IDisposable
         var body = await response.Content.ReadFromJsonAsync<AuthResponseBody>();
         body.Should().NotBeNull();
         body!.Token.Should().NotBeNullOrWhiteSpace();
+        body.RefreshToken.Should().NotBeNullOrWhiteSpace();
         body.Username.Should().Be("newuser");
         body.Email.Should().Be("newuser@example.com");
     }
@@ -111,6 +112,7 @@ public class AuthApiTests : IDisposable
 
         var body = await response.Content.ReadFromJsonAsync<AuthResponseBody>();
         body!.Token.Should().NotBeNullOrWhiteSpace();
+        body.RefreshToken.Should().NotBeNullOrWhiteSpace();
         body.Username.Should().Be("loginuser");
     }
 
@@ -168,5 +170,91 @@ public class AuthApiTests : IDisposable
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
-    private sealed record AuthResponseBody(string Token, string Username, string Email);
+    [Fact]
+    public async Task Refresh_WithValidToken_ShouldReturnNewAccessTokenThatAuthorizesProducts()
+    {
+        var register = await _client.PostAsJsonAsync("/api/auth/register", new
+        {
+            username = "refreshuser",
+            email = "refreshuser@example.com",
+            password = "Password123!"
+        });
+        var issued = await register.Content.ReadFromJsonAsync<AuthResponseBody>();
+
+        var refreshResponse = await _client.PostAsJsonAsync("/api/auth/refresh", new
+        {
+            refreshToken = issued!.RefreshToken
+        });
+
+        refreshResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var refreshed = await refreshResponse.Content.ReadFromJsonAsync<AuthResponseBody>();
+        refreshed!.Token.Should().NotBeNullOrWhiteSpace();
+        refreshed.RefreshToken.Should().NotBeNullOrWhiteSpace();
+        refreshed.RefreshToken.Should().NotBe(issued.RefreshToken);
+
+        _client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", refreshed.Token);
+
+        var productsResponse = await _client.GetAsync("/api/products");
+        productsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Refresh_WithReusedToken_ShouldReturn401()
+    {
+        var register = await _client.PostAsJsonAsync("/api/auth/register", new
+        {
+            username = "reuseuser",
+            email = "reuseuser@example.com",
+            password = "Password123!"
+        });
+        var issued = await register.Content.ReadFromJsonAsync<AuthResponseBody>();
+
+        var firstRefresh = await _client.PostAsJsonAsync("/api/auth/refresh", new
+        {
+            refreshToken = issued!.RefreshToken
+        });
+        firstRefresh.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var reused = await _client.PostAsJsonAsync("/api/auth/refresh", new
+        {
+            refreshToken = issued.RefreshToken
+        });
+
+        reused.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Refresh_WithEmptyToken_ShouldReturn400()
+    {
+        var response = await _client.PostAsJsonAsync("/api/auth/refresh", new { refreshToken = "" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Revoke_ShouldPreventSubsequentRefresh()
+    {
+        var register = await _client.PostAsJsonAsync("/api/auth/register", new
+        {
+            username = "revokeuser",
+            email = "revokeuser@example.com",
+            password = "Password123!"
+        });
+        var issued = await register.Content.ReadFromJsonAsync<AuthResponseBody>();
+
+        var revoke = await _client.PostAsJsonAsync("/api/auth/revoke", new
+        {
+            refreshToken = issued!.RefreshToken
+        });
+        revoke.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var refresh = await _client.PostAsJsonAsync("/api/auth/refresh", new
+        {
+            refreshToken = issued.RefreshToken
+        });
+        refresh.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    private sealed record AuthResponseBody(string Token, string Username, string Email, string RefreshToken);
 }

@@ -11,7 +11,8 @@ using ProductManager.WebAPI.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers()
+builder.Services
+    .AddControllers()
     .AddApplicationPart(typeof(ProductManager.Presentation.DependencyInjection).Assembly);
 
 builder.Services

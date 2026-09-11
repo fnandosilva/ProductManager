@@ -15,7 +15,7 @@ public class JwtTokenGeneratorTests
             ["JwtSettings:SecretKey"] = "TestSecretKeyThatIsAtLeast32CharactersLong!",
             ["JwtSettings:Issuer"] = "TestIssuer",
             ["JwtSettings:Audience"] = "TestAudience",
-            ["JwtSettings:ExpiryMinutes"] = "60"
+            ["JwtSettings:ExpiryMinutes"] = "15"
         };
 
         if (overrides is not null)

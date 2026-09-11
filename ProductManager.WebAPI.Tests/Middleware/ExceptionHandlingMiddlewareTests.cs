@@ -145,4 +145,16 @@ public class ExceptionHandlingMiddlewareTests
 
         context.Response.ContentType.Should().Be("application/json");
     }
+
+    [Fact]
+    public async Task InvokeAsync_WithUnauthorizedException_ShouldReturn401WithMessage()
+    {
+        var (middleware, context) = CreateSut(_ => throw new UnauthorizedException("Invalid refresh token."));
+
+        await middleware.InvokeAsync(context);
+
+        context.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
+        var body = await ReadResponseBodyAsync(context);
+        body.GetProperty("message").GetString().Should().Be("Invalid refresh token.");
+    }
 }

@@ -32,7 +32,8 @@ services:
       JwtSettings__SecretKey: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in your .env file}
       JwtSettings__Issuer: ProductManagerAPI
       JwtSettings__Audience: ProductManagerClient
-      JwtSettings__ExpiryMinutes: "60"
+      JwtSettings__ExpiryMinutes: "15"
+      JwtSettings__RefreshTokenExpiryDays: "7"
       Cors__AllowedOrigins__0: "http://localhost:${CLIENT_PORT:-4200}"
     ports:
       - "${API_PORT:-8080}:8080"

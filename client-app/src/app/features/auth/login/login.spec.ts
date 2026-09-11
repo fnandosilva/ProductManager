@@ -38,7 +38,12 @@ describe('Login', () => {
   });
 
   it('should log in and navigate to /products on success', () => {
-    const response: AuthResponse = { token: 'a.b.c', username: 'demo', email: 'demo@example.com' };
+    const response: AuthResponse = {
+      token: 'a.b.c',
+      username: 'demo',
+      email: 'demo@example.com',
+      refreshToken: 'refresh-demo'
+    };
     authService.login.mockReturnValue(of(response));
     const component = createComponent();
     component.form.setValue({ email: 'demo@example.com', password: 'Demo@1234' });
@@ -66,7 +71,9 @@ describe('Login', () => {
   });
 
   it('should not submit twice while a request is already in flight', () => {
-    authService.login.mockReturnValue(of({ token: 't', username: 'u', email: 'e@example.com' } as AuthResponse));
+    authService.login.mockReturnValue(
+      of({ token: 't', username: 'u', email: 'e@example.com', refreshToken: 'r' } as AuthResponse)
+    );
     const component = createComponent();
     component.form.setValue({ email: 'demo@example.com', password: 'Demo@1234' });
     component.isSubmitting.set(true);

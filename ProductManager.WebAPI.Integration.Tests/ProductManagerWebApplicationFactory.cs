@@ -59,5 +59,5 @@ public class ProductManagerWebApplicationFactory : WebApplicationFactory<Program
         return client;
     }
 
-    public sealed record AuthResponseModel(string Token, string Username, string Email);
+    public sealed record AuthResponseModel(string Token, string Username, string Email, string RefreshToken);
 }

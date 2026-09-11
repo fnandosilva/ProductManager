@@ -8,3 +8,6 @@ public sealed record RegisterRequest(
 public sealed record LoginRequest(
     string Email,
     string Password);
+
+public sealed record RefreshTokenRequest(
+    string RefreshToken);
