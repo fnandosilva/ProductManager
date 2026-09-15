@@ -1,9 +1,9 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="ProductManager.WebAPI/ProductManager.WebAPI.csproj" />
     <Project Path="ProductManager.Application/ProductManager.Application.csproj" />
     <Project Path="ProductManager.Infrastructure/ProductManager.Infrastructure.csproj" />
     <Project Path="ProductManager.Presentation/ProductManager.Presentation.csproj" />
-    <Project Path="ProductManager.WebAPI/ProductManager.WebAPI.csproj" />
     <Project Path="ProductManager.Domain/ProductManager.Domain.csproj" />
   </Folder>
   <Folder Name="/Tests/" />
