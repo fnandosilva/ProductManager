@@ -1,5 +1,8 @@
+using System.Globalization;
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using ProductManager.Application;
@@ -52,6 +55,54 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    // Docker nginx is not loopback; without this, every browser shares the proxy IP.
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+const string AuthRateLimitPolicy = "auth";
+var rateLimitingEnabled = builder.Configuration.GetValue("RateLimiting:Enabled", false);
+var permitLimit = builder.Configuration.GetValue("RateLimiting:PermitLimit", 10);
+var windowSeconds = builder.Configuration.GetValue("RateLimiting:WindowSeconds", 60);
+
+if (rateLimitingEnabled)
+{
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        options.OnRejected = async (context, cancellationToken) =>
+        {
+            if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+            {
+                context.HttpContext.Response.Headers.RetryAfter =
+                    ((int)retryAfter.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+            }
+
+            context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+            await context.HttpContext.Response.WriteAsJsonAsync(
+                new { message = "Too many requests. Try again later." },
+                cancellationToken);
+        };
+
+        options.AddPolicy(AuthRateLimitPolicy, httpContext =>
+        {
+            var partitionKey = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            return RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey,
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    AutoReplenishment = true,
+                    PermitLimit = permitLimit,
+                    QueueLimit = 0,
+                    Window = TimeSpan.FromSeconds(windowSeconds)
+                });
+        });
+    });
+}
+
 const string CorsPolicyName = "DefaultCorsPolicy";
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 
@@ -94,6 +145,7 @@ builder.Services.AddSwaggerGen(options =>
 var app = builder.Build();
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseForwardedHeaders();
 
 if (app.Environment.IsDevelopment())
 {
@@ -108,6 +160,14 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseCors(CorsPolicyName);
+
+if (rateLimitingEnabled)
+{
+    // [EnableRateLimiting] is endpoint metadata; the limiter must run after routing
+    // or GetEndpoint() is null and the policy never applies.
+    app.UseRouting();
+    app.UseRateLimiter();
+}
 
 app.UseAuthentication();
 app.UseAuthorization();

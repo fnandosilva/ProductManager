@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using ProductManager.Application.Auth.Commands.Login;
 using ProductManager.Application.Auth.Commands.Refresh;
 using ProductManager.Application.Auth.Commands.Register;
@@ -8,6 +9,7 @@ using ProductManager.Application.Auth.Commands.Revoke;
 namespace ProductManager.Presentation.Auth;
 
 [ApiController]
+[EnableRateLimiting("auth")]
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {

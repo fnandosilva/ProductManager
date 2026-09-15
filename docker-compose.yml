@@ -35,6 +35,10 @@ services:
       JwtSettings__ExpiryMinutes: "15"
       JwtSettings__RefreshTokenExpiryDays: "7"
       Cors__AllowedOrigins__0: "http://localhost:${CLIENT_PORT:-4200}"
+      # Do not set RateLimiting__Enabled here: an empty/false Compose default would
+      # override appsettings.Production.json and turn the limiter off in production.
+      RateLimiting__PermitLimit: ${RATE_LIMITING_PERMIT_LIMIT:-10}
+      RateLimiting__WindowSeconds: ${RATE_LIMITING_WINDOW_SECONDS:-60}
     ports:
       - "${API_PORT:-8080}:8080"
     restart: unless-stopped

@@ -85,7 +85,8 @@ cp .env.example .env
 |----------|---------|---------|
 | `DB_SA_PASSWORD` | SQL Server `sa` password (must meet SQL Server's complexity rules) | `Str0ng!Passw0rd#2026` |
 | `JWT_SECRET_KEY` | Secret key used to sign JWT tokens (32+ chars) | `Str0ng!Passw0rd#2026SuperSecretKeyForHS256Docker` |
-| `ASPNETCORE_ENVIRONMENT` | `Development` keeps Swagger UI enabled | `Development` |
+| `ASPNETCORE_ENVIRONMENT` | `Development` keeps Swagger UI enabled and auth rate limiting off. `Production` loads `appsettings.Production.json` and turns rate limiting on | `Development` |
+| `RATE_LIMITING_PERMIT_LIMIT` / `RATE_LIMITING_WINDOW_SECONDS` | Auth rate-limit window (used when the limiter is on, i.e. Production) | `10` / `60` |
 | `SQL_PORT` / `API_PORT` / `CLIENT_PORT` | Host ports, change if already in use | `1433` / `8080` / `4200` |
 
 ### 2. Build and start everything
@@ -272,6 +273,37 @@ Supply the real value out-of-band, matching your environment:
 - Use a cryptographically random value of at least 32 bytes (256 bits) for HS256 — see the generator snippet in [Run locally](#run-locally).
 - Rotate the secret periodically and immediately if it's ever exposed; rotating invalidates all previously issued tokens.
 - Never commit a real secret to `appsettings.json`, `appsettings.*.json`, or `.env` — only `.env.example`/`appsettings.Development.json.example` (with placeholder values) belong in Git.
+
+### Rate limiting
+
+Public auth endpoints (`POST /api/auth/register`, `/login`, `/refresh`, `/revoke`) are limited to **10 requests per 60 seconds per client IP**. Product endpoints are not rate-limited (they already require a JWT). Exceeding the limit returns **429** with `{ "message": "Too many requests. Try again later." }` and a `Retry-After` header.
+
+This is gated by environment, same idea as migrations/seeding:
+
+| File | `RateLimiting:Enabled` | When it applies |
+|---|---|---|
+| `appsettings.json` | `true` | Base default (Production-safe) |
+| `appsettings.Development.json` | `false` | Local `dotnet run`, Visual Studio, and Docker Compose's default `ASPNETCORE_ENVIRONMENT=Development` |
+| `appsettings.Production.json` | `true` | When `ASPNETCORE_ENVIRONMENT=Production` |
+
+**Production must set `ASPNETCORE_ENVIRONMENT=Production`.** That is the switch that loads `appsettings.Production.json` and turns the limiter on. Docker Compose does **not** pass `RateLimiting__Enabled`, on purpose: an empty/false Compose default would override the Production file and disable the limiter.
+
+Optional overrides (higher precedence than the JSON files):
+
+| Variable | Purpose |
+|---|---|
+| `ASPNETCORE_ENVIRONMENT=Production` | Loads production settings and enables the limiter |
+| `RateLimiting__Enabled` | Force on/off regardless of environment (avoid in Compose unless you mean to override) |
+| `RateLimiting__PermitLimit` / `RATE_LIMITING_PERMIT_LIMIT` | Requests allowed per window (default 10) |
+| `RateLimiting__WindowSeconds` / `RATE_LIMITING_WINDOW_SECONDS` | Window length in seconds (default 60) |
+
+To try a production-like Docker run:
+
+```bash
+ASPNETCORE_ENVIRONMENT=Production
+```
+
+in `.env` (and apply migrations yourself — auto-migrate/seed stay off in Production; see [Migrations and seeding](#migrations-and-seeding)).
 
 ## CORS
 
@@ -567,7 +599,7 @@ dotnet test ProductManager.Infrastructure.Tests --filter "FullyQualifiedName~Pro
 - **Validation failures** — empty/too-long names, non-positive prices, negative stock, invalid emails, short passwords/usernames, invalid ID ranges, invalid stock-level ranges
 - **Not-found scenarios** — operating on a product ID that doesn't exist (404 across get/update/delete/stock endpoints)
 - **Business rule violations** — decrementing more stock than is available (400 `InvalidOperationException`)
-- **Authentication/authorization** — duplicate email/username on register, wrong password on login, missing/invalid JWT token on protected endpoints (401)
+- **Authentication/authorization** — duplicate email/username on register, wrong password on login, missing/invalid JWT token on protected endpoints (401), auth rate limiting returning 429 after the per-IP window is exhausted
 - **Infrastructure behavior** — case-insensitive search/email lookups, sequential/exhausted ID generation, BCrypt hash round-tripping, JWT claim/issuer/audience/expiry correctness, idempotent database seeding
 - **Real-SQL-Server-only behavior** — concurrency safety (50 parallel `ProductIdGenerator` calls never produce a duplicate ID; concurrent stock decrements/additions never lose an update or oversell — see [Stock concurrency](#stock-concurrency)), `decimal(18,2)` rounding, `LIKE` wildcard escaping, collation-driven case-insensitive username uniqueness/lookup, and the migration fail-fast guard (see [Testing against a real SQL Server](#testing-against-a-real-sql-server))
 - **Frontend logic** — auth session persistence/restore, refresh-token storage, the JWT interceptor's attach/refresh-on-401/logout behavior, route guards, login form validation/error handling, and the products table's load/search/filter/CRUD/stock-dialog flows (see [Frontend tests](#frontend-tests-client-app))
@@ -575,6 +607,7 @@ dotnet test ProductManager.Infrastructure.Tests --filter "FullyQualifiedName~Pro
 ## Features
 
 - **JWT Authentication** — Access + refresh tokens with registration, login, rotation, and revoke
+- **Auth rate limiting** — 10 requests/minute/IP on register/login/refresh/revoke; on in Production (`appsettings.Production.json`), off in Development
 - **CORS Whitelist** — Configuration-driven, fail-closed cross-origin policy
 - **Clean Architecture** — Domain-driven design with clear separation of concerns
 - **CQRS + MediatR** — Command/Query separation with pipeline behaviors
@@ -591,6 +624,7 @@ dotnet test ProductManager.Infrastructure.Tests --filter "FullyQualifiedName~Pro
 ## Notes
 
 - **Authentication:** All product endpoints require a valid JWT token in the `Authorization: Bearer <token>` header
+- **Auth rate limiting:** Register/login/refresh/revoke are limited per IP in Production (`ASPNETCORE_ENVIRONMENT=Production`); disabled in Development (see [Rate limiting](#rate-limiting))
 - **User Storage:** User credentials are stored securely with BCrypt password hashing
 - **Token Expiry:** Access JWTs expire after 15 minutes; refresh tokens expire after 7 days (both configurable in `appsettings.json`)
 - Product IDs are auto-generated as unique 6-digit numbers (100,000–999,999)
